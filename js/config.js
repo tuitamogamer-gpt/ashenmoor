@@ -9,7 +9,7 @@ export const CONFIG = {
   reshuffleDoom: 1,
   crowdedDoom: 2,        // doom added instead of spawning a 4th minion
   consequential: 1,      // damage an ally takes after attacking/disrupting
-  stepMs: 700,           // pacing between villain-phase steps
+  stepMs: 1350,          // pacing between villain-phase steps (slow enough to read)
   logCap: 250,
   difficulty: {
     normal:    { villainHpBonus: 0, schemeThreshold: 8 },

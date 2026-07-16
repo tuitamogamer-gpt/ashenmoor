@@ -330,7 +330,7 @@ function onClick(e) {
     "choose-villain": () => { menuVillain = id; sfx.click(); renderMenu(); },
     "diff": () => { menuDiff = id; sfx.click(); renderMenu(); },
     "begin": () => { sfx.click(); startGame(); },
-    "continue": () => { const st = loadSave(); if (st) { S = st; document.body.className = "in-game"; startDrone(); startMusic(); resetModes(); render(); if (S.phase === "villain") runVillain(); } },
+    "continue": () => { const st = loadSave(); if (st) { S = st; document.body.className = "in-game"; startDrone(); startMusic(); resetModes(); render(); if (S.phase === "villain") { vpLogStart = S.log.length; runVillain(); } } },
     "howto": () => toggleHelp(true),
     "mute": () => toggleMute(),
     "menu": () => { if (COOP.on) return; if (!running) { save(); renderMenu(); } },
@@ -555,9 +555,12 @@ function commit() {
   if (S && S.over && !$(".modal.end")) setTimeout(showEnd, 900);
 }
 
+let vpLogStart = 0;
+
 function doEndTurn() {
   if (!S || !E.canAct(S) || running) return;
   resetModes();
+  vpLogStart = S.log.length;
   const err = E.endTurn(S);
   if (err) { toast(err); return; }
   commit();
@@ -569,21 +572,47 @@ async function runVillain() {
   if (running || !S) return;
   running = true;
   render();
+  let lastLog = S.log.length;
+  const announce = () => {
+    const fresh = S.log.slice(lastLog);
+    lastLog = S.log.length;
+    if (fresh.length) banner(esc(fresh[0].msg.slice(0, 90)), "vp " + (fresh[0].cls || ""), 1150);
+  };
   while (S && S.phase === "villain" && !S.over) {
     if (S.vp.pending) {
       render();
       const choice = await defenseModal(E.defenseOptions(S));
       E.applyDefense(S, choice);
+      announce();
       commit();
       continue;
     }
     await sleep(CONFIG.stepMs);
     if (!S || S.phase !== "villain" || S.over) break;
     E.stepVillain(S);
+    announce();
     commit();
   }
   running = false;
   render();
+  if (S && !S.over && S.phase === "player") showRecap();
+}
+
+function showRecap() {
+  const entries = S.log.slice(vpLogStart).filter((l) => l.msg !== STR.phases.yourTurn);
+  if (!entries.length) return;
+  const el = document.createElement("div");
+  el.className = "modal recap";
+  el.innerHTML = `
+    <div class="modal-box">
+      <h3>${STR.vp.recapTitle}</h3>
+      <div class="recap-list">
+        ${entries.map((l) => `<div class="l ${l.cls}">${esc(l.msg)}</div>`).join("")}
+      </div>
+      <button class="btn primary" data-act="close-modal">${STR.vp.begin}</button>
+    </div>`;
+  $("#overlays").appendChild(el);
+  sfx.turn();
 }
 
 function defenseModal(o) {
@@ -692,15 +721,38 @@ function toggleHelp(open) {
   const ex = $(".modal.help");
   if (ex && !open) { ex.remove(); return; }
   if (ex) return;
+  const H = STR.help;
   const el = document.createElement("div");
   el.className = "modal help";
   el.innerHTML = `
-    <div class="modal-box wide">
-      <h3>${STR.help.title}</h3>
+    <div class="modal-box wide help-box">
+      <h3>${H.title}</h3>
       <div class="help-body">
-        ${STR.help.body.map(([h, b]) => `<h4>${h}</h4><p>${b}</p>`).join("")}
+        <p class="help-goal">${H.goal}</p>
+
+        <h4>${H.flowTitle}</h4>
+        ${H.flow.map((s, i) => `<div class="hstep"><b>${i + 1}</b><span>${s}</span></div>`).join("")}
+
+        <h4>${H.vpTitle}</h4>
+        <p class="help-note">${H.vpNote}</p>
+        ${H.vp.map((s, i) => `<div class="hstep vp"><b>${i + 1}</b><span>${s}</span></div>`).join("")}
+
+        <h4>${H.anatomyTitle}</h4>
+        <div class="anatomy">
+          <div class="anatomy-card">${playerCardHTML("ember_slash")}</div>
+          <div class="anatomy-card">${playerCardHTML("wardens_resolve")}</div>
+          <ol>${H.anatomy.map((s) => `<li>${s}</li>`).join("")}</ol>
+        </div>
+
+        <h4>${H.legendTitle}</h4>
+        <div class="legend">
+          ${H.legend.map(([ic, n, d]) => `<div class="leg"><i>${ic}</i><div><b>${n}</b><span>${d}</span></div></div>`).join("")}
+        </div>
+
+        <h4>${H.moreTitle}</h4>
+        ${H.body.map(([h, b]) => `<h5>${h}</h5><p>${b}</p>`).join("")}
       </div>
-      <button class="btn primary" data-act="close-modal">${STR.help.close}</button>
+      <button class="btn primary" data-act="close-modal">${H.close}</button>
     </div>`;
   $("#overlays").appendChild(el);
 }
@@ -796,8 +848,8 @@ function render() {
       <div class="c-name">${c.name}</div>
       <div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#10023;", c.thw)}${statChip("&#9829;", a.hp, "hp")}</div>
       ${canUse ? `<div class="mini-btns">
-          ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}">&#9876;</button>` : ""}
-          ${c.thw > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}">&#10023;</button>` : ""}
+          ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyAttack)}">&#9876;</button>` : ""}
+          ${c.thw > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}">&#10023;</button>` : ""}
         </div>` : ""}
     </div>`;
   }).join("");
@@ -841,9 +893,9 @@ function render() {
 
   const heroBtns = E.canAct(S) && mode === "idle" && !running ? `
     <div class="hero-actions">
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack">&#9876; ${STR.actions.attack} ${E.heroAtk(S)}</button>
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart">&#10023; ${STR.actions.thwart} ${E.heroThw(S)}</button>
-      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability">&#10038; ${H.ability.name}</button>
+      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}">&#9876; ${STR.actions.attack} ${E.heroAtk(S)}</button>
+      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}">&#10023; ${STR.actions.thwart} ${E.heroThw(S)}</button>
+      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}">&#10038; ${H.ability.name}</button>
     </div>` : "";
 
   const payBar = mode === "pay" ? (() => {
@@ -871,7 +923,7 @@ function render() {
   <div class="game ${$(".game")?.classList.contains("show-log") ? "show-log" : ""} ${mode === "target" ? "targeting" : ""} ${S.villain.stage >= VILLAINS[S.villainId].stages.length - 1 ? "enrage" : ""} ${S.hero.hp <= 3 ? "lowhp" : ""}">
     <header class="topbar">
       <button class="btn small" data-act="menu">${STR.hud.menu}</button>
-      <div class="round-pill">${STR.hud.round} <b>${S.round}</b> · ${STR.hud.intent}: <b class="int-${S.intent}">${intentTxt}</b></div>
+      <div class="round-pill">${STR.hud.round} <b>${S.round}</b> · ${STR.hud.intent}: <b class="int-${S.intent}" data-tip="${esc(STR.tips.intent)}">${intentTxt}</b></div>
       <div class="top-right">
         <button class="btn small" data-act="restart">${STR.hud.restart}</button>
         <button class="btn small" data-act="help">?</button>
@@ -882,11 +934,11 @@ function render() {
     ${payBar}${targetBar}
     <section class="villain-zone">
       <div class="piles">
-        <div class="pile" title="${STR.hud.encounterDeck}">
+        <div class="pile" data-tip="${esc(STR.tips.encDeck)}">
           <img src="${artPath("cardback")}" alt="">
           <span class="count">${S.enc.deck.length}</span>
         </div>
-        <div class="pile flat" data-act="enc-discard" title="${STR.hud.discard}">
+        <div class="pile flat" data-act="enc-discard" data-tip="${esc(STR.tips.discard)}">
           <span class="count">${S.enc.discard.length}</span>
         </div>
       </div>
@@ -905,7 +957,7 @@ function render() {
       <div class="card scheme ${targetable("scheme")}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme">
         <div class="c-art"><img src="${artPath(SCHEME.art)}" alt=""></div>
         <div class="c-name">${SCHEME.name}</div>
-        <div class="threat-track">
+        <div class="threat-track" data-tip="${esc(STR.tips.doom)}">
           <b class="tnum">${S.scheme.threat}<span>/${th}</span></b>
           <div class="pips">${Array.from({ length: th }, (_, i) => `<i class="${i < S.scheme.threat ? "on" : ""}"></i>`).join("")}</div>
           <div class="s-stage">${STR.hud.stage} ${S.scheme.stage + 1}/2</div>
@@ -931,12 +983,12 @@ function render() {
       </div>
       <div class="hand">${handHTML}</div>
       <div class="side">
-        <div class="pile" data-fx="pdeck" title="${STR.hud.deck}">
+        <div class="pile" data-fx="pdeck" data-tip="${esc(STR.tips.deck)}">
           <img src="${artPath("cardback")}" alt="">
           <span class="count">${S.deck.length}</span>
         </div>
-        <div class="pile flat" data-act="discard" title="${STR.hud.discard}"><span class="count">${S.discard.length}</span></div>
-        <button class="btn endturn ${!E.canAct(S) || running || mode !== "idle" ? "off" : ""}" data-act="end-turn">${running ? STR.phases.villainPhase : STR.hud.endTurn}</button>
+        <div class="pile flat" data-act="discard" data-tip="${esc(STR.tips.discard)}"><span class="count">${S.discard.length}</span></div>
+        <button class="btn endturn ${!E.canAct(S) || running || mode !== "idle" ? "off" : ""}" data-act="end-turn" data-tip="${esc(STR.tips.endTurn)}">${running ? STR.phases.villainPhase : STR.hud.endTurn}</button>
       </div>
     </section>
     <aside class="logpanel">
@@ -997,6 +1049,7 @@ function targetable(id) {
 function renderInspector() {
   const box = $("#inspector");
   if (!box || !S) return;
+  if (mode !== "idle") { box.innerHTML = ""; box.classList.remove("open"); return; }
   let key = hoverPrev;
   if (!key && sel) {
     key = sel.kind === "hand" ? "p:" + E.handCard(S, sel.uid)?.c

@@ -19,6 +19,17 @@
       "build": "same assets + coop-logic.js as logic.js + index.html with window.__COOP__=true (see scratchpad build step; rebuild: sed title/__COOP__ into index.html, cp coop-logic.js logic.js)"
     }
   },
+  "primary_hosting": {
+    "url": "https://ashenmoor.vercel.app",
+    "platform": "Vercel (project ashenmoor, account tuitamogamer-7851), static, linked to the GitHub repo — every git push auto-deploys; manual: vercel deploy --prod --yes",
+    "note": "Solo + campaign fully work here. Twin Vigils co-op needs the Higgsfield game kernel."
+  },
+  "backup_hosting": {
+    "url": "https://tuitamogamer-gpt.github.io/ashenmoor/",
+    "repo": "https://github.com/tuitamogamer-gpt/ashenmoor",
+    "note": "GitHub Pages mirror (solo + campaign only). Update: git add -A && git commit && git push."
+  },
+  "outage_2026-07-16": "Higgsfield account hit 0 credits (free plan) -> both game URLs serve 'ok' placeholder and ALL deploy_game calls (update AND create) fail with generic error. Fresh zips are uploaded to CDN (media ids 25ea0070... main / a98e8219... coop) — once credits are topped up, redeploy is a single deploy_game call per game with the stored game_id.",
   "note": "To update either game: zip, media_upload, PUT, media_confirm(file), deploy_game WITH that game_id. Never omit game_id on update.",
   "deployed": "2026-07-15"
 }

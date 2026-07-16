@@ -206,13 +206,14 @@ export function shake(el, hard = false) {
   el.addEventListener("animationend", () => el.classList.remove("shake", "shake-hard"), { once: true });
 }
 
-export function banner(text, tone = "") {
+export function banner(text, tone = "", hold = 1500) {
   const host = document.getElementById("overlays");
   if (!host) return;
+  host.querySelectorAll(".banner.vp").forEach((b) => b.remove()); // one step-banner at a time
   const el = document.createElement("div");
   el.className = "banner " + tone;
   el.innerHTML = `<div class="banner-inner">${text}</div>`;
   host.appendChild(el);
-  setTimeout(() => el.classList.add("out"), 1500);
-  setTimeout(() => el.remove(), 2100);
+  setTimeout(() => el.classList.add("out"), hold);
+  setTimeout(() => el.remove(), hold + 600);
 }

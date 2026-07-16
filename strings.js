@@ -16,7 +16,7 @@ export const STR = {
     nightmareHint: "Nightmare: the Hollow King has more health and the Hollowing needs less doom.",
     start: "Begin the Vigil",
     mute: "Sound",
-    version: "v1.5 · The Beacon",
+    version: "v1.6 · Echoes",
   },
   coop: {
     title: "TWIN VIGILS",

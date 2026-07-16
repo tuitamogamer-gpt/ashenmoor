@@ -1196,14 +1196,14 @@ body.coop .logpanel { top: 46px; }
 
 /* ---------- v1.8 Comfort: action dock, pause menu, settings ---------- */
 .action-dock {
-  position: fixed; right: 14px; bottom: 170px; z-index: 240;
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  padding: 12px 10px; border-radius: 40px;
+  position: fixed; left: 14px; bottom: 300px; z-index: 240;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 22px;
   background: #12101cee; border: 1px solid #3a3357;
   box-shadow: 0 8px 30px #000c, 0 0 22px #7a5cff22;
   animation: dockIn .22s ease-out;
 }
-@keyframes dockIn { from { transform: translateX(24px); opacity: 0; } }
+@keyframes dockIn { from { transform: translateX(-24px); opacity: 0; } }
 .dock-count {
   font-family: "Cinzel", serif; font-size: 17px; font-weight: 700;
   color: #ffb35c; line-height: 1; padding: 2px 0;
@@ -1225,7 +1225,7 @@ body.coop .logpanel { top: 46px; }
 .dock-label {
   max-width: 120px; text-align: center; font-size: 12px; color: #cfc7ee; line-height: 1.3;
 }
-.action-dock [data-tip]:hover::after { left: auto; right: 54px; top: 50%; transform: translateY(-50%); bottom: auto; }
+.action-dock [data-tip]:hover::after { left: 54px; right: auto; top: 50%; transform: translateY(-50%); bottom: auto; }
 
 .modal.pausemenu .modal-box.pause-box { min-width: min(440px, 92vw); text-align: left; }
 .pause-box h3 { font-family: "Cinzel", serif; margin-bottom: 14px; }
@@ -1248,6 +1248,23 @@ body.coop .logpanel { top: 46px; }
 .no-motion .lunge { animation: none !important; }
 
 @media (max-width: 760px) {
-  .action-dock { right: 8px; bottom: 140px; padding: 9px 7px; gap: 7px; }
+  .action-dock { left: 8px; bottom: 250px; padding: 8px 9px; gap: 6px; }
   .dock-btn { width: 40px; height: 40px; font-size: 16px; }
+}
+
+/* ---------- v1.9 The Court's Arsenal ---------- */
+.dock-row { display: flex; gap: 7px; }
+.dock-row .dock-btn { width: 40px; height: 40px; font-size: 16px; }
+.action-dock.mana-idle {
+  flex-direction: row; gap: 5px; padding: 7px 14px; cursor: help;
+  font-family: "Cinzel", serif; font-size: 15px; font-weight: 700; color: #8fe3d2;
+  border-color: #2c5a51;
+}
+.action-dock.mana-idle:hover::after { left: 100%; margin-left: 8px; right: auto; top: 50%; transform: translateY(-50%); bottom: auto; }
+.kw.tough { background: #2c2a24; border-color: #9c8f6a; color: #e5d9ae; cursor: help; }
+.kw.ret { background: #331419; border-color: #b04a5a; color: #ff9aa8; cursor: help; }
+.chip.attach { cursor: help; border-color: #7a5cff66; }
+@media (max-width: 760px) {
+  .action-dock.mana-idle { display: none; }
+  .dock-row .dock-btn { width: 36px; height: 36px; }
 }

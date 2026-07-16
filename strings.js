@@ -16,7 +16,7 @@ export const STR = {
     nightmareHint: "Nightmare: the villain has more health and his agenda needs less doom per stage.",
     start: "Begin the Vigil",
     mute: "Sound",
-    version: "v1.8 · Comfort",
+    version: "v1.9 · The Court's Arsenal",
   },
   coop: {
     title: "TWIN VIGILS",
@@ -184,6 +184,11 @@ export const STR = {
       ["GUARD", "Guard", "While this minion lives, the villain cannot be attacked or targeted by your damage."],
       ["QUICK", "Quickstrike", "This minion attacks immediately when it spawns."],
       ["SEALED", "Sealed", "Temporal Slip: the villain skips his whole activation this round."],
+      ["🔒", "Crisis", "While this side scheme is in play, no doom can be removed from the agenda. Sever it first."],
+      ["⚡", "Surge", "When this encounter card resolves, reveal another encounter card immediately."],
+      ["🗿", "Tough", "This minion ignores the first damage dealt to it — you must hit it twice."],
+      ["🩸", "Retaliate", "While this minion lives, whoever attacks it takes damage back."],
+      ["⛨", "Villain upgrade", "An attachment that works every round (armor, lifesteal...). All upgrades shatter when the villain's stage breaks."],
     ],
     moreTitle: "Deeper rules",
     body: [
@@ -238,6 +243,7 @@ export const STR = {
     confirm: "Confirm & play (Enter)",
     auto: "Auto-select payment",
     cancel: "Cancel (Esc)",
+    pool: "Your hand is your mana — this is its total value if spent as payment.",
   },
   reveal: {
     title: "Encounter revealed!",
@@ -249,6 +255,10 @@ export const STR = {
     quick: "⚡ Quickstrike — it will attack you immediately!",
     guard: "🛡 GUARD — the villain cannot be attacked while it lives.",
     crisis: "🔒 CRISIS — while it is in play, doom CANNOT be removed from the agenda. Sever this first!",
+    surge: "⚡ SURGE — after this resolves, ANOTHER encounter card is revealed.",
+    tough: "🗿 TOUGH — the first damage dealt to it is ignored entirely. Hit it twice.",
+    retaliate: "🩸 RETALIATE {n} — while it lives, whoever attacks it suffers {n} damage back.",
+    upgrade: "It stays attached and works every round — but all upgrades SHATTER when you break the villain's stage.",
   },
   agenda: {
     title: "The Agenda Advances!",
@@ -310,5 +320,11 @@ export const STR = {
     loseScheme: "The agenda is complete. Defeat.",
     mulligan: "Redraws {n} card(s).",
     quickstrike: "Quickstrike!",
+    surge: "SURGE — the Court piles on!",
+    toughAbsorb: "{m} is TOUGH — the first blow glances off.",
+    retaliate: "{m} RETALIATES for {n}!",
+    armor: "The villain's ward soaks {n} damage.",
+    attachShatter: "His upgrades shatter with his broken form!",
+    lifesteal: "The Hungering Blade feeds — he heals {n}.",
   },
 };

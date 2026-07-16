@@ -61,7 +61,7 @@ export function newGame(heroId, villainId = "morvane", difficulty = "normal", se
     heroId, villainId, isCampaign: !!opts.isCampaign,
     hero: { hp: maxHp, maxHp, exhausted: false, shield: 0, abilityUsed: 0 },
     deck: [], hand: [], discard: [], allies: [], upgrades: [],
-    villain: { stage: 0, hp: 0, atkBuff: 0, attachments: [], stun: 0, burn: 0 },
+    villain: { stage: 0, hp: 0, atkBuff: 0, attachments: [], stun: 0, burn: 0, armorUsed: false },
     scheme: { stage: 0, threat: 0 },
     sideSchemes: [],
     enc: { deck: [], discard: [] },
@@ -182,12 +182,28 @@ const thwartAnchor = (targetId) => (targetId && targetId !== "scheme" ? "side:" 
 
 function dmgVillain(S, n) {
   if (S.over || n <= 0) return;
+  // villain upgrades with armor soak the first hit each round
+  const armor = S.villain.attachments.reduce((a, id) => a + ((ENCOUNTERS[id].trigger || {}).armor || 0), 0);
+  if (armor > 0 && !S.villain.armorUsed) {
+    S.villain.armorUsed = true;
+    const red = Math.min(armor, n);
+    n -= red;
+    log(S, t(L.armor, { n: red }), "bad");
+    fx(S, { kind: "shield", n: red, at: "villain" });
+    if (n <= 0) return;
+  }
   S.villain.hp -= n;
   S.stats.dmgDealt += n;
   fx(S, { kind: "dmg", n, at: "villain" });
   if (S.villain.hp <= 0) {
     log(S, t(L.stageDown, { stage: stage(S).title }), "good");
     fx(S, { kind: "shatter", at: "villain" });
+    // his upgrades shatter with the broken form
+    if (S.villain.attachments.length) {
+      S.enc.discard.push(...S.villain.attachments);
+      S.villain.attachments = [];
+      log(S, L.attachShatter, "good");
+    }
     if (S.villain.stage >= villainDef(S).stages.length - 1) { win(S); return; }
     S.villain.stage++;
     S.villain.hp = stageHp(S, S.villain.stage);
@@ -204,10 +220,28 @@ function dmgVillain(S, n) {
 function dmgMinion(S, uid, n) {
   const m = S.minions.find((x) => x.uid === uid);
   if (!m || n <= 0) return;
+  if (m.tough) {
+    m.tough = false;
+    log(S, t(L.toughAbsorb, { m: ENCOUNTERS[m.c].name }), "bad");
+    fx(S, { kind: "shield", n, at: "minion:" + uid });
+    return;
+  }
   m.hp -= n;
   S.stats.dmgDealt += n;
   fx(S, { kind: "dmg", n, at: "minion:" + uid });
   if (m.hp <= 0) killMinion(S, uid);
+}
+
+// RETALIATE — a living minion strikes back at whoever attacked it
+function retaliate(S, targetId, victimKind, victimUid) {
+  if (S.over || !targetId || targetId === "villain") return;
+  const m = S.minions.find((x) => x.uid === targetId);
+  const r = m ? ENCOUNTERS[m.c].retaliate || 0 : 0;
+  if (!r) return;
+  log(S, t(L.retaliate, { m: ENCOUNTERS[m.c].name, n: r }), "bad");
+  fx(S, { kind: "beam", from: "minion:" + m.uid, to: victimKind === "ally" ? "ally:" + victimUid : "hero", tone: "void" });
+  if (victimKind === "ally") dmgAlly(S, victimUid, r);
+  else dmgHero(S, r);
 }
 
 function killMinion(S, uid) {
@@ -265,7 +299,7 @@ function spawnMinion(S, encId) {
     addThreat(S, CONFIG.crowdedDoom);
     return null;
   }
-  const m = { uid: "m" + nuid(S), c: encId, hp: ENCOUNTERS[encId].hp };
+  const m = { uid: "m" + nuid(S), c: encId, hp: ENCOUNTERS[encId].hp, tough: !!ENCOUNTERS[encId].tough };
   S.minions.push(m);
   log(S, t(L.minionSpawn, { m: ENCOUNTERS[encId].name }), "bad");
   fx(S, { kind: "spawn", at: "minion:" + m.uid });
@@ -445,6 +479,7 @@ export function basicAttack(S, targetId) {
   fx(S, { kind: "attack" });
   fx(S, { kind: "beam", from: "hero", to: anchorOf(targetId), tone: "ember" });
   dealToTarget(S, targetId, n);
+  retaliate(S, targetId, "hero");
   return null;
 }
 
@@ -473,6 +508,7 @@ export function heroAbility(S, targetId = null) {
     fx(S, { kind: "attack" });
     fx(S, { kind: "beam", from: "hero", to: anchorOf(targetId), tone: "ember" });
     dealToTarget(S, targetId, 1);
+    retaliate(S, targetId, "hero");
   } else if (kind === "shield1") {
     S.hero.abilityUsed++;
     S.hero.shield += 1;
@@ -506,6 +542,7 @@ export function allyAct(S, uid, mode, targetId = null) {
     fx(S, { kind: "attack" });
     fx(S, { kind: "beam", from: "ally:" + uid, to: anchorOf(targetId), tone: "ember" });
     dealToTarget(S, targetId, dmg);
+    retaliate(S, targetId, "ally", uid);
   } else {
     const tgt = targetId || "scheme";
     if (tgt === "scheme" && hasCrisis(S)) { a.exhausted = false; return A.crisisBlock; }
@@ -605,6 +642,7 @@ export function stepVillain(S) {
     revealEncounter(S);
   } else if (step === "cleanup") {
     S.villainSealed = false;
+    S.villain.armorUsed = false;
     S.hero.exhausted = false;
     S.hero.shield = 0;
     S.hero.abilityUsed = 0;
@@ -682,6 +720,15 @@ export function resolveReveal(S) {
       if (S.hero.exhausted) addThreat(S, 1);
       else { S.hero.exhausted = true; log(S, L.exhaustHero, "bad"); }
     }
+    if (f.crowning) {
+      if (S.villain.attachments.length) { addThreat(S, 2); if (!S.over) healVillain(S, 2); }
+      else addThreat(S, 1);
+    }
+  }
+  // SURGE — the Court piles on: reveal another encounter card
+  if (e.surge && !S.over) {
+    log(S, L.surge, "bad");
+    revealEncounter(S);
   }
 }
 
@@ -698,12 +745,14 @@ export function applyDefense(S, choice) {
   }
   const fromA = p.attacker.kind === "villain" ? "villain" : "minion:" + p.attacker.uid;
   fx(S, { kind: "beam", from: fromA, to: choice.kind === "ally" ? "ally:" + choice.uid : "hero", tone: "void" });
+  let dealt = 0;
   if (choice.kind === "hero" && !S.hero.exhausted) {
     S.hero.exhausted = true;
     const d = Math.max(0, total - heroDef(S));
     log(S, t(L.heroDefend, { hero: H.name, n: d }), "you");
     fx(S, { kind: "block" });
     dmgHero(S, d);
+    dealt = d;
   } else if (choice.kind === "ally") {
     const a = S.allies.find((x) => x.uid === choice.uid);
     if (a && !a.exhausted) {
@@ -711,13 +760,21 @@ export function applyDefense(S, choice) {
       log(S, t(L.allyBlock, { ally: CARDS[a.c].name }), "you");
       fx(S, { kind: "block" });
       dmgAlly(S, choice.uid, total);
+      dealt = total;
     } else {
       log(S, t(L.take, { hero: H.name, n: total }), "bad");
       dmgHero(S, total);
+      dealt = total;
     }
   } else {
     log(S, t(L.take, { hero: H.name, n: total }), "bad");
     dmgHero(S, total);
+    dealt = total;
+  }
+  // villain upgrades with lifesteal feed on a landed ATTACK
+  if (!S.over && dealt > 0 && p.attacker.kind === "villain") {
+    const ls = S.villain.attachments.reduce((a, id) => a + ((ENCOUNTERS[id].trigger || {}).lifesteal || 0), 0);
+    if (ls > 0) { log(S, t(L.lifesteal, { n: ls }), "bad"); healVillain(S, ls); }
   }
 }
 

@@ -696,9 +696,13 @@ function revealModal(eid) {
     revealResolve = resolve;
     const e = ENCOUNTERS[eid];
     const notes = [STR.reveal[e.type] || ""];
+    if (e.type === "attachment") notes.push(STR.reveal.upgrade);
     if (e.crisis) notes.push(STR.reveal.crisis);
     if (e.quickstrike) notes.push(STR.reveal.quick);
     if (e.guard) notes.push(STR.reveal.guard);
+    if (e.tough) notes.push(STR.reveal.tough);
+    if (e.retaliate) notes.push(tpl(STR.reveal.retaliate, { n: e.retaliate }));
+    if (e.surge) notes.push(STR.reveal.surge);
     const el = document.createElement("div");
     el.className = "modal reveal-m";
     el.innerHTML = `
@@ -1029,6 +1033,8 @@ function render() {
       <div class="c-stats">${statChip("&#9876;", e.atk)}${statChip("&#9829;", m.hp, "hp")}</div>
       ${e.quickstrike ? '<div class="kw">QUICK</div>' : ""}
       ${e.guard ? '<div class="kw guard">GUARD</div>' : ""}
+      ${m.tough ? `<div class="kw tough" data-tip="${esc(STR.reveal.tough)}">TOUGH</div>` : ""}
+      ${e.retaliate ? `<div class="kw ret" data-tip="${esc(tpl(STR.reveal.retaliate, { n: e.retaliate }))}">RET ${e.retaliate}</div>` : ""}
     </div>`;
   }).join("");
 
@@ -1051,7 +1057,7 @@ function render() {
     <div class="chip upgrade" data-prev="p:${u.c}">${CARDS[u.c].name}</div>`).join("");
 
   const attachHTML = S.villain.attachments.map((id) => `
-    <div class="chip attach" data-prev="e:${id}">${ENCOUNTERS[id].name}</div>`).join("");
+    <div class="chip attach" data-prev="e:${id}" data-tip="${esc(ENCOUNTERS[id].text)}">&#9960; ${ENCOUNTERS[id].name}</div>`).join("");
 
   const sideHTML = S.sideSchemes.map((ss) => {
     const e = ENCOUNTERS[ss.c];
@@ -1092,18 +1098,22 @@ function render() {
       <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}">&#10038; ${H.ability.name}</button>
     </div>` : "";
 
-  // floating action dock: pay/target controls live beside the hand, not up top
+  // condensed mana tracker, LEFT side by the hero: shows the hand's resource
+  // pool at rest and becomes the pay/target controls when a card is staged
+  const payPool = S.hand.reduce((n, h) => n + E.resValue(h.c), 0);
   const payBar = mode === "pay" ? (() => {
     const card = CARDS[E.handCard(S, payCtx.uid).c];
     const need = E.effCost(S, card);
     const sum = [...payCtx.chosen].reduce((n, p) => n + E.resValue(E.handCard(S, p).c), 0);
     const ok = sum >= need;
     return `
-      <div class="action-dock">
+      <div class="action-dock paying">
         <div class="dock-count ${ok ? "ok" : ""}">${sum}<span>/${need}</span></div>
-        <button class="dock-btn confirm ${ok ? "" : "off"}" data-act="pay-confirm" data-tip="${esc(STR.dock.confirm)}">&#10003;</button>
-        <button class="dock-btn" data-act="pay-auto" data-tip="${esc(STR.dock.auto)}">&#10227;</button>
-        <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
+        <div class="dock-row">
+          <button class="dock-btn confirm ${ok ? "" : "off"}" data-act="pay-confirm" data-tip="${esc(STR.dock.confirm)}">&#10003;</button>
+          <button class="dock-btn" data-act="pay-auto" data-tip="${esc(STR.dock.auto)}">&#10227;</button>
+          <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
+        </div>
       </div>`;
   })() : "";
 
@@ -1112,6 +1122,9 @@ function render() {
       <div class="dock-label">${targetCtx.label}</div>
       <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
     </div>` : "";
+
+  const manaChip = mode === "idle" && !running && E.canAct(S) ? `
+    <div class="action-dock mana-idle" data-tip="${esc(STR.dock.pool)}">&#10023; ${payPool}</div>` : "";
 
   document.body.className = "in-game";
   const prevBars = captureBars();
@@ -1127,7 +1140,7 @@ function render() {
         <button class="btn small log-btn" data-act="log-toggle">${STR.hud.log}</button>
       </div>
     </header>
-    ${payBar}${targetBar}
+    ${payBar}${targetBar}${manaChip}
     <section class="villain-zone">
       <div class="piles">
         <div class="pile" data-tip="${esc(STR.tips.encDeck)}">

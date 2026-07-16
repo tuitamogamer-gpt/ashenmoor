@@ -453,6 +453,41 @@ export const ENCOUNTERS = {
     ongoing: "handMinus1",
     clear: { draw: 2 },
   },
+  // ---- the Court's arsenal (v1.9): villain upgrades & keyworded threats ----
+  obsidian_ward: {
+    name: "Obsidian Ward", type: "attachment", boost: 1,
+    text: "Villain upgrade — the first damage the villain takes each round is reduced by 2. Shatters when his stage breaks.",
+    flavor: "The dark learned to flinch.",
+    trigger: { armor: 2 },
+  },
+  hungering_blade: {
+    name: "Hungering Blade", type: "attachment", boost: 2,
+    text: "Villain upgrade — when his ATTACK deals damage, he heals 2. Shatters when his stage breaks.",
+    flavor: "It was forged hungry.",
+    trigger: { lifesteal: 2 },
+  },
+  ash_revenant: {
+    name: "Ash Revenant", type: "minion", atk: 2, hp: 3, boost: 1, tough: true, retaliate: 1,
+    text: "TOUGH — ignores the first damage dealt to it. RETALIATE 1 — while it lives, whoever attacks it suffers 1 damage.",
+    flavor: "It remembers every blade that failed.",
+  },
+  spire_shrike: {
+    name: "Spire Shrike", type: "minion", atk: 1, hp: 1, boost: 1, quickstrike: true, surge: true,
+    text: "Quickstrike — attacks immediately when it spawns. SURGE — reveal another encounter card.",
+    flavor: "It arrives screaming, and never alone.",
+  },
+  the_court_convenes: {
+    name: "The Court Convenes", type: "treachery", boost: 1, surge: true,
+    text: "Place 1 doom. SURGE — reveal another encounter card.",
+    flavor: "When the candles gutter, the verdicts multiply.",
+    fx: { threat: 1 },
+  },
+  crowning_ritual: {
+    name: "Crowning Ritual", type: "treachery", boost: 2,
+    text: "If the villain has an upgrade attached: place 2 doom and he heals 2. Otherwise: place 1 doom.",
+    flavor: "A crown is a promise the dark keeps.",
+    fx: { crowning: true },
+  },
   // ---- crisis side schemes (v1.7) — they shield the agenda ----
   rite_of_binding: {
     name: "Rite of Binding", type: "sidescheme", enter: 3, boost: 1, crisis: true,
@@ -510,6 +545,9 @@ export const VILLAINS = {
       "ritual_of_the_crown",
       "harvest_of_souls",
       "rite_of_binding",
+      "obsidian_ward",
+      "ash_revenant",
+      "the_court_convenes",
     ],
   },
   vexahl: {
@@ -552,6 +590,9 @@ export const VILLAINS = {
       "the_great_chant",
       "tithe_of_whispers",
       "veil_of_despair",
+      "hungering_blade",
+      "spire_shrike",
+      "the_court_convenes",
     ],
   },
   nul: {
@@ -597,6 +638,11 @@ export const VILLAINS = {
       "the_great_chant",
       "rite_of_binding",
       "veil_of_despair",
+      "obsidian_ward",
+      "hungering_blade",
+      "ash_revenant",
+      "spire_shrike",
+      "crowning_ritual",
     ],
   },
 };

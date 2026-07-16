@@ -50,6 +50,16 @@ function pickEnemyTarget(S) {
   return m ? m.uid : "villain";
 }
 
+// where to aim disrupts: a CRISIS side scheme shields the agenda, so it
+// must be severed first (lowest threat clears fastest); else the agenda
+function thwartTarget(S) {
+  if (E.hasCrisis(S)) {
+    const crisis = S.sideSchemes.filter((ss) => ENCOUNTERS[ss.c].crisis);
+    return crisis.reduce((b, ss) => (ss.threat < b.threat ? ss : b)).uid;
+  }
+  return "scheme";
+}
+
 // target for a damage event of n dmg: damage events race the villain;
 // they only divert to a minion when they can kill something dangerous
 // (atk >= 2). Chaff minions are left to basic attacks / abilities / allies.
@@ -104,7 +114,10 @@ function evalCard(S, h) {
     if (SMART && nMin === 0 && S.villain.hp > ef.dmgAll) return null;
     score = nMin >= 2 ? 92 : nMin === 1 || villainLow ? 85 : 70;
   }
-  if (ef.thwart && threat >= th - EVENT_MARGIN) score = Math.max(score, 100);
+  if (ef.thwart && (threat >= th - EVENT_MARGIN || E.hasCrisis(S))) {
+    score = Math.max(score, 100);
+    if (S.sideSchemes.length) target = thwartTarget(S);
+  }
   if (ef.heal && S.hero.hp <= S.hero.maxHp - 3)
     score = Math.max(score, ef.heal >= 4 ? 80 : 70);
   if (ef.draw && !ef.dmg && !ef.thwart && !ef.shield)
@@ -143,8 +156,9 @@ function greedyPlays(S) {
 // hero's basic action? (odran: DEF 3 vs ATK 1 -> yes; kaelen/sera -> no)
 function heroShouldHold(S) {
   if (!SMART || S.intent !== "attack" || S.villainSealed) return false;
-  // never hold when a disrupt is needed to stave off the final scheme advance
-  if (S.scheme.stage === 1 && S.scheme.threat >= E.schemeThreshold(S) - 2)
+  // never hold when a disrupt is needed to stave off the final agenda stage
+  const lastStage = E.agendaDef(S).stages.length - 1;
+  if (S.scheme.stage === lastStage && S.scheme.threat >= E.schemeThreshold(S) - 2)
     return false;
   const prevented = Math.min(E.villainAtkVal(S), E.heroDef(S));
   const actValue = Math.max(E.heroAtk(S), Math.min(E.heroThw(S), S.scheme.threat));
@@ -166,8 +180,8 @@ function allyActions(S) {
     if (a.exhausted || !S.allies.includes(a)) continue;
     if (a.uid === blocker) continue;
     const card = CARDS[a.c];
-    if ((card.thw || 0) > 0 && S.scheme.threat >= th - ALLY_MARGIN) {
-      E.allyAct(S, a.uid, "thwart");
+    if ((card.thw || 0) > 0 && (S.scheme.threat >= th - ALLY_MARGIN || E.hasCrisis(S))) {
+      E.allyAct(S, a.uid, "thwart", thwartTarget(S));
     } else {
       E.allyAct(S, a.uid, "attack", pickEnemyTarget(S));
     }
@@ -209,7 +223,7 @@ function playerTurn(S) {
     const nearCap = S.scheme.threat >= E.schemeThreshold(S) - HERO_MARGIN;
     const thwBetter =
       SMART && E.heroThw(S) > E.heroAtk(S) && S.scheme.threat >= E.heroThw(S);
-    if (nearCap || thwBetter) E.basicThwart(S);
+    if (nearCap || thwBetter || (SMART && E.hasCrisis(S))) E.basicThwart(S, thwartTarget(S));
     else E.basicAttack(S, pickEnemyTarget(S));
   }
   if (S.over) return;
@@ -230,7 +244,10 @@ function defend(S) {
   const chumpOk =
     ready.length && ((ready[0].hp === 1 && d >= 2) || heroWouldTake >= 3);
   if (chumpOk) {
-    E.applyDefense(S, { kind: "ally", uid: ready[0].uid });
+    // prefer the cheapest ally that SURVIVES the hit; else chump the lowest
+    const survivors = ready.filter((o) => !o.dies);
+    const blocker = SMART && survivors.length ? survivors[0] : ready[0];
+    E.applyDefense(S, { kind: "ally", uid: blocker.uid });
   } else if (opt.heroCanDefend && E.heroDef(S) >= 2) {
     E.applyDefense(S, { kind: "hero" });
   } else {
@@ -243,6 +260,7 @@ function villainPhase(S) {
   while (S.phase === "villain" && !S.over && guard++ < 300) {
     if (S.vp.pending) defend(S);
     else if (S.vp.revealed) E.resolveReveal(S);
+    else if (S.vp.agenda != null) E.ackAgenda(S);
     else E.stepVillain(S);
   }
 }
@@ -293,7 +311,7 @@ if (isMain && process.env.TRACE) {
 }
 if (isMain) {
   const heroes = ["kaelen", "sera", "odran"];
-  const villains = ["morvane", "vexahl"];
+  const villains = ["morvane", "vexahl", "nul"];
   const results = [];
   const crashes = [];
 

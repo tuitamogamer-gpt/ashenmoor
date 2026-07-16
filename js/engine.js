@@ -3,7 +3,7 @@
 // State is plain JSON (saveable / resumable mid villain phase).
 // ============================================================
 import { CONFIG } from "./config.js";
-import { HEROES, CARDS, ENCOUNTERS, VILLAINS, SCHEME } from "./cards.js";
+import { HEROES, CARDS, ENCOUNTERS, VILLAINS } from "./cards.js";
 import { STR } from "../strings.js";
 import { seedFrom, shuffle, randInt } from "./rng.js";
 
@@ -20,14 +20,20 @@ const crystals = (S) => S.upgrades.reduce((n, u) => n + ((CARDS[u.c].mod || {}).
 export const abilityLimit = (S) => 1 + modSum(S, "abilityCharges");
 export const villainDef = (S) => VILLAINS[S.villainId];
 export const stage = (S) => villainDef(S).stages[S.villain.stage];
+export const agendaDef = (S) => villainDef(S).agenda;
+export const agendaStage = (S) => agendaDef(S).stages[S.scheme.stage];
+const agendaMod = (S, k) => (agendaStage(S).ongoing || {})[k] || 0;
 export const hasOngoing = (S, key) => S.sideSchemes.some((ss) => ENCOUNTERS[ss.c].ongoing === key);
-export const minionAtkVal = (S, m) => ENCOUNTERS[m.c].atk + (hasOngoing(S, "minionAtk1") ? 1 : 0);
+export const hasCrisis = (S) => S.sideSchemes.some((ss) => ENCOUNTERS[ss.c].crisis);
+export const minionAtkVal = (S, m) => ENCOUNTERS[m.c].atk + (hasOngoing(S, "minionAtk1") ? 1 : 0) + agendaMod(S, "minionAtk");
 export const villainAtkVal = (S) =>
-  stage(S).atk + S.villain.atkBuff + (hasOngoing(S, "villainAtk1") ? 1 : 0) +
+  stage(S).atk + S.villain.atkBuff + (hasOngoing(S, "villainAtk1") ? 1 : 0) + agendaMod(S, "atk") +
   S.villain.attachments.reduce((n, id) => n + ((ENCOUNTERS[id].mod || {}).atk || 0), 0);
 export const villainSchVal = (S) =>
-  stage(S).sch + S.villain.attachments.reduce((n, id) => n + ((ENCOUNTERS[id].mod || {}).sch || 0), 0);
-export const schemeThreshold = (S) => villainDef(S).threshold[S.difficulty] ?? CONFIG.difficulty[S.difficulty].schemeThreshold;
+  stage(S).sch + agendaMod(S, "sch") +
+  S.villain.attachments.reduce((n, id) => n + ((ENCOUNTERS[id].mod || {}).sch || 0), 0);
+export const doomPerRound = (S) => CONFIG.doomPerRound + (hasOngoing(S, "doomPlus1") ? 1 : 0) + agendaMod(S, "doomPerRound");
+export const schemeThreshold = (S) => agendaStage(S).th[S.difficulty];
 const stageHp = (S, i) => villainDef(S).stages[i].hp + CONFIG.difficulty[S.difficulty].villainHpBonus;
 export const intentFor = (S, round) =>
   villainDef(S).intentPattern === "thirdBell"
@@ -50,7 +56,7 @@ export function newGame(heroId, villainId = "morvane", difficulty = "normal", se
   const H = HEROES[heroId];
   const maxHp = Math.max(1, H.hp + (opts.maxHpMod || 0));
   const S = {
-    v: 4, seed: seedStr, rng: seedFrom(seedStr), difficulty,
+    v: 5, seed: seedStr, rng: seedFrom(seedStr), difficulty,
     uidN: 0, round: 1, phase: "player", intent: "attack",
     heroId, villainId, isCampaign: !!opts.isCampaign,
     hero: { hp: maxHp, maxHp, exhausted: false, shield: 0, abilityUsed: 0 },
@@ -61,7 +67,7 @@ export function newGame(heroId, villainId = "morvane", difficulty = "normal", se
     enc: { deck: [], discard: [] },
     minions: [],
     villainSealed: false, mulliganed: false, firstCardPlayed: false,
-    vp: { queue: [], pending: null },
+    vp: { queue: [], pending: null, revealed: null, agenda: null },
     fx: [], log: [], over: null,
     stats: { rounds: 1, dmgDealt: 0, threatRemoved: 0, cardsPlayed: 0, alliesLost: 0 },
   };
@@ -111,28 +117,42 @@ export function addThreat(S, n) {
   if (S.over || n <= 0) return;
   S.scheme.threat += n;
   fx(S, { kind: "threat+", n, at: "scheme" });
-  const th = schemeThreshold(S);
-  if (S.scheme.threat >= th) {
-    if (S.scheme.stage === 0) {
-      S.scheme.stage = 1;
-      S.scheme.threat = 0;
-      S.villain.atkBuff += 1;
-      S.villain.hp = Math.min(stageHp(S, S.villain.stage), S.villain.hp + 3);
-      const advMsg = t(L.schemeAdvance, { v: villainDef(S).name });
-      log(S, advMsg, "bad");
-      fx(S, { kind: "banner", text: advMsg, tone: "bad" });
-    } else {
-      lose(S, "scheme");
-    }
+  // agenda advance — overflow doom CARRIES over to the next stage
+  let guard = 0;
+  while (!S.over && S.scheme.threat >= schemeThreshold(S) && guard++ < 6) {
+    if (S.scheme.stage >= agendaDef(S).stages.length - 1) { lose(S, "scheme"); return; }
+    S.scheme.threat -= schemeThreshold(S);
+    S.scheme.stage++;
+    const st = agendaStage(S);
+    log(S, t(L.agendaAdvance, { a: agendaDef(S).name, stage: st.name }), "bad");
+    fx(S, { kind: "agenda", stage: S.scheme.stage });
+    if (S.phase === "villain" && S.vp) S.vp.agenda = S.scheme.stage; // pause the villain loop for the modal
+    const adv = st.onAdvance || {};
+    if (adv.healVillain) healVillain(S, adv.healVillain);
+    if (adv.spawn && !S.over) spawnMinion(S, adv.spawn);
+    if (adv.directDmg && !S.over) { log(S, t(L.agendaDirect, { n: adv.directDmg }), "bad"); dmgHero(S, adv.directDmg); }
+    if (adv.discardRandom && !S.over) discardRandom(S, adv.discardRandom);
+    if (adv.doom && !S.over) { S.scheme.threat += adv.doom; fx(S, { kind: "threat+", n: adv.doom, at: "scheme" }); }
   }
 }
 
 function removeThreat(S, n) {
+  if (hasCrisis(S)) { log(S, L.crisisBlock, "bad"); fx(S, { kind: "crisisBlock" }); return 0; }
   const rem = Math.min(S.scheme.threat, n);
   S.scheme.threat -= rem;
   S.stats.threatRemoved += rem;
   if (rem > 0) fx(S, { kind: "threat-", n: rem, at: "scheme" });
   return rem;
+}
+
+function discardRandom(S, n) {
+  for (let i = 0; i < n && S.hand.length > 0; i++) {
+    const idx = randInt(S, S.hand.length);
+    const [gone] = S.hand.splice(idx, 1);
+    S.discard.push(gone.c);
+    log(S, t(L.discardRandom, { c: CARDS[gone.c].name }), "bad");
+  }
+  fx(S, { kind: "tear" });
 }
 
 // thwart router: "scheme" = main scheme, anything else = a side-scheme uid
@@ -303,7 +323,7 @@ export function validTargets(S, spec) {
     const guarded = S.minions.some((m) => ENCOUNTERS[m.c].guard);
     return [...(guarded ? [] : ["villain"]), ...S.minions.map((m) => m.uid)];
   }
-  if (spec === "scheme") return ["scheme", ...S.sideSchemes.map((ss) => ss.uid)];
+  if (spec === "scheme") return [...(hasCrisis(S) ? [] : ["scheme"]), ...S.sideSchemes.map((ss) => ss.uid)];
   return [];
 }
 
@@ -431,6 +451,7 @@ export function basicAttack(S, targetId) {
 export function basicThwart(S, targetId = "scheme") {
   if (!canAct(S)) return "not now";
   if (S.hero.exhausted) return A.heroExhausted;
+  if (targetId === "scheme" && hasCrisis(S)) return A.crisisBlock;
   S.hero.exhausted = true;
   const n = heroThw(S);
   fx(S, { kind: "beam", from: "hero", to: thwartAnchor(targetId), tone: "teal" });
@@ -459,7 +480,9 @@ export function heroAbility(S, targetId = null) {
     fx(S, { kind: "shield", n: 1 });
   } else {
     S.hero.abilityUsed++;
-    const tgt = targetId || "scheme";
+    let tgt = targetId || "scheme";
+    // a crisis shields the agenda — Riftsight bends toward the crisis instead
+    if (tgt === "scheme" && hasCrisis(S)) tgt = S.sideSchemes.find((ss) => ENCOUNTERS[ss.c].crisis).uid;
     fx(S, { kind: "beam", from: "hero", to: thwartAnchor(tgt), tone: "teal" });
     removeThreatFrom(S, tgt, 1);
     log(S, L.abilitySera, "you");
@@ -485,6 +508,7 @@ export function allyAct(S, uid, mode, targetId = null) {
     dealToTarget(S, targetId, dmg);
   } else {
     const tgt = targetId || "scheme";
+    if (tgt === "scheme" && hasCrisis(S)) { a.exhausted = false; return A.crisisBlock; }
     fx(S, { kind: "beam", from: "ally:" + uid, to: thwartAnchor(tgt), tone: "teal" });
     const rem = removeThreatFrom(S, tgt, card.thw);
     log(S, t(L.basicThwart, { who: card.name, n: rem }), "you");
@@ -508,6 +532,7 @@ export function endTurn(S) {
     queue: ["doom", "villain", ...S.minions.map((m) => "minion:" + m.uid), "reveal", "cleanup"],
     pending: null,
     revealed: null,
+    agenda: null,
   };
   return null;
 }
@@ -534,8 +559,10 @@ function queueAttack(S, attacker) {
   fx(S, { kind: "incoming" });
 }
 
+export function ackAgenda(S) { if (S.vp) S.vp.agenda = null; }
+
 export function stepVillain(S) {
-  if (S.over || S.phase !== "villain" || S.vp.pending || S.vp.revealed) return;
+  if (S.over || S.phase !== "villain" || S.vp.pending || S.vp.revealed || S.vp.agenda != null) return;
   const step = S.vp.queue.shift();
   if (!step) { S.phase = "player"; return; }
   if (step === "doom") {
@@ -545,7 +572,7 @@ export function stepVillain(S) {
       dmgVillain(S, 1);
       if (S.over) return;
     }
-    const dn = CONFIG.doomPerRound + (hasOngoing(S, "doomPlus1") ? 1 : 0);
+    const dn = doomPerRound(S);
     log(S, t(L.doom, { n: dn }), "bad");
     fx(S, { kind: "doomPulse" });
     addThreat(S, dn);
@@ -649,15 +676,7 @@ export function resolveReveal(S) {
       } else addThreat(S, 2);
     }
     if (f.villainAttack && !S.over) queueAttack(S, { kind: "villain" });
-    if (f.discardRandom) {
-      for (let i = 0; i < f.discardRandom && S.hand.length > 0; i++) {
-        const idx = randInt(S, S.hand.length);
-        const [gone] = S.hand.splice(idx, 1);
-        S.discard.push(gone.c);
-        log(S, t(L.discardRandom, { c: CARDS[gone.c].name }), "bad");
-      }
-      fx(S, { kind: "tear" });
-    }
+    if (f.discardRandom) discardRandom(S, f.discardRandom);
     if (f.healVillain) healVillain(S, f.healVillain);
     if (f.exhaustHero) {
       if (S.hero.exhausted) addThreat(S, 1);

@@ -39,7 +39,7 @@ export const HEROES = {
     name: "Sera Voss",
     title: "Riftweaver",
     color: "rift",
-    hp: 10, atk: 1, thw: 2, def: 1, handSize: 6,
+    hp: 11, atk: 1, thw: 2, def: 2, handSize: 6,
     art: "hero_sera",
     ability: {
       name: "Riftsight",
@@ -68,7 +68,7 @@ export const HEROES = {
     name: "Odran Vael",
     title: "The Gravewarden",
     color: "aegis",
-    hp: 14, atk: 1, thw: 1, def: 3, handSize: 5,
+    hp: 14, atk: 1, thw: 2, def: 3, handSize: 5,
     art: "hero_odran",
     ability: {
       name: "Aegis",
@@ -169,9 +169,9 @@ export const CARDS = {
   // ---- Sera (rift) ----
   rift_bolt: {
     name: "Rift Bolt", type: "event", cost: 1, faction: "sera",
-    text: "Deal 2 damage to an enemy.",
+    text: "Deal 3 damage to an enemy.",
     flavor: "The Void bites both ways.",
-    effect: { dmg: 2, target: "enemy" },
+    effect: { dmg: 3, target: "enemy" },
   },
   unravel: {
     name: "Unravel", type: "event", cost: 1, faction: "sera",
@@ -181,9 +181,9 @@ export const CARDS = {
   },
   veil_of_mist: {
     name: "Veil of Mist", type: "event", cost: 1, faction: "sera",
-    text: "Gain 2 shield until your next turn.",
+    text: "Gain 3 shield until your next turn.",
     flavor: "What the eye loses, the blade cannot find.",
-    effect: { shield: 2 },
+    effect: { shield: 3 },
   },
   foresight: {
     name: "Foresight", type: "event", cost: 1, faction: "sera",
@@ -192,7 +192,7 @@ export const CARDS = {
     effect: { draw: 2 },
   },
   banish: {
-    name: "Banish", type: "event", cost: 3, faction: "sera",
+    name: "Banish", type: "event", cost: 2, faction: "sera",
     text: "Defeat a minion.",
     flavor: "Go back to the dark that made you.",
     effect: { banish: true, target: "minion" },
@@ -212,7 +212,7 @@ export const CARDS = {
   },
   sentinel_golem: {
     name: "Sentinel Golem", type: "ally", cost: 3, faction: "sera",
-    atk: 1, thw: 1, hp: 4,
+    atk: 1, thw: 1, hp: 5,
     text: "Ally. A patient wall of stone and crystal.",
     flavor: "It does not tire. It does not yield.",
   },
@@ -453,6 +453,19 @@ export const ENCOUNTERS = {
     ongoing: "handMinus1",
     clear: { draw: 2 },
   },
+  // ---- crisis side schemes (v1.7) — they shield the agenda ----
+  rite_of_binding: {
+    name: "Rite of Binding", type: "sidescheme", enter: 3, boost: 1, crisis: true,
+    text: "CRISIS — while this is in play, doom cannot be removed from the agenda. Severed: draw 1 card.",
+    flavor: "They chained the wound shut with your name.",
+    clear: { draw: 1 },
+  },
+  veil_of_despair: {
+    name: "Veil of Despair", type: "sidescheme", enter: 2, boost: 2, crisis: true,
+    text: "CRISIS — while this is in play, doom cannot be removed from the agenda. Severed: your hero heals 2.",
+    flavor: "Grief settles like ash. It does not melt.",
+    clear: { heal: 2 },
+  },
 };
 
 // intentPattern: "alternate" = attack on odd rounds; "thirdBell" = attack every 3rd round
@@ -464,7 +477,20 @@ export const VILLAINS = {
     epithet: "The Hollow King",
     hint: "Alternates ATTACK and SCHEME. Hits like a falling crown.",
     intentPattern: "alternate",
-    threshold: { normal: 10, nightmare: 8 },
+    agenda: {
+      name: "The Hollowing",
+      art: "scheme_hollowing",
+      stages: [
+        { name: "Whispers in the Walls", th: { normal: 9, nightmare: 7 },
+          text: "The city forgets itself, one name at a time." },
+        { name: "The Veil Descends", th: { normal: 9, nightmare: 8 },
+          text: "Advance: Morvane heals 3. While here: his ATTACK +1.",
+          onAdvance: { healVillain: 3 }, ongoing: { atk: 1 } },
+        { name: "A Crown of Hollow Names", th: { normal: 10, nightmare: 8 },
+          text: "Advance: a Void Cultist spawns and a card is torn from your hand. While here: his SCHEME +1. If this fills — Ashenmoor is lost.",
+          onAdvance: { spawn: "void_cultist", discardRandom: 1 }, ongoing: { sch: 1 } },
+      ],
+    },
     stages: [
       { title: "Morvane, the Veiled",  hp: 12, atk: 2, sch: 1 },
       { title: "Morvane, Unbound",     hp: 14, atk: 3, sch: 2, onReveal: { spawn: "void_cultist" } },
@@ -483,6 +509,7 @@ export const VILLAINS = {
       "void_edge",
       "ritual_of_the_crown",
       "harvest_of_souls",
+      "rite_of_binding",
     ],
   },
   vexahl: {
@@ -492,7 +519,20 @@ export const VILLAINS = {
     epithet: "Voice of the Spire",
     hint: "Schemes relentlessly — strikes on every third bell.",
     intentPattern: "thirdBell",
-    threshold: { normal: 12, nightmare: 10 },
+    agenda: {
+      name: "The Toll of Bells",
+      art: "scheme_vexahl",
+      stages: [
+        { name: "The First Toll", th: { normal: 11, nightmare: 9 },
+          text: "Somewhere below the water, a bell answers." },
+        { name: "The Chorus Swells", th: { normal: 11, nightmare: 9 },
+          text: "Advance: a Void Cultist spawns to sing. While here: minions' ATTACK +1.",
+          onAdvance: { spawn: "void_cultist" }, ongoing: { minionAtk: 1 } },
+        { name: "The Final Proclamation", th: { normal: 12, nightmare: 10 },
+          text: "Advance: the verdict lands — 1 doom at once. While here: Doom spreads +1 each round. If this fills — Ashenmoor is lost.",
+          onAdvance: { doom: 1 }, ongoing: { doomPerRound: 1 } },
+      ],
+    },
     stages: [
       { title: "Vexahl, the Whisper",      hp: 11, atk: 2, sch: 2 },
       { title: "Vexahl, the Chorus",       hp: 13, atk: 2, sch: 3, onReveal: { threat: 2 } },
@@ -511,6 +551,7 @@ export const VILLAINS = {
       "void_edge",
       "the_great_chant",
       "tithe_of_whispers",
+      "veil_of_despair",
     ],
   },
   nul: {
@@ -520,7 +561,20 @@ export const VILLAINS = {
     epithet: "The Spire-Heart",
     hint: "The source of it all. Everything, at once, faster.",
     intentPattern: "alternate",
-    threshold: { normal: 12, nightmare: 10 },
+    agenda: {
+      name: "The Spire Consumes",
+      art: "scheme_nul",
+      stages: [
+        { name: "Roots Beneath the City", th: { normal: 10, nightmare: 8 },
+          text: "Every cellar in Ashenmoor grows the same black stone." },
+        { name: "The Feeding", th: { normal: 10, nightmare: 8 },
+          text: "Advance: the Spire drinks — you take 2 damage and Nul heals 3. While here: minions' ATTACK +1.",
+          onAdvance: { directDmg: 2, healVillain: 3 }, ongoing: { minionAtk: 1 } },
+        { name: "Ascension", th: { normal: 11, nightmare: 9 },
+          text: "Advance: a Rift Stalker tears through. While here: his SCHEME +1. If this fills — Ashenmoor is lost.",
+          onAdvance: { spawn: "rift_stalker" }, ongoing: { sch: 1 } },
+      ],
+    },
     stages: [
       { title: "The Heartbeat",       hp: 14, atk: 3, sch: 2 },
       { title: "The Waking Spire",    hp: 16, atk: 3, sch: 3, onReveal: { spawn: "rift_stalker" } },
@@ -541,13 +595,8 @@ export const VILLAINS = {
       "void_edge",
       "ritual_of_the_crown",
       "the_great_chant",
+      "rite_of_binding",
+      "veil_of_despair",
     ],
   },
-};
-
-export const SCHEME = {
-  name: "The Hollowing of Ashenmoor",
-  art: "scheme_hollowing",
-  text: "When the doom track fills: the first time, the villain gains +1 ATK and heals 3; the second time, the city is lost.",
-  stages: 2,
 };

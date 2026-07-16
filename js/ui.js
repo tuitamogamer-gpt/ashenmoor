@@ -3,7 +3,7 @@
 // ============================================================
 import { STR } from "../strings.js";
 import { CONFIG } from "./config.js";
-import { HEROES, CARDS, ENCOUNTERS, VILLAINS, SCHEME, artPath } from "./cards.js";
+import { HEROES, CARDS, ENCOUNTERS, VILLAINS, artPath } from "./cards.js";
 import * as E from "./engine.js";
 import * as CAMP from "./campaign.js";
 import { sfx, setMuted, isMuted, floatText, shake, banner, startDrone, stopDrone, startMusic, stopMusic, setMusicStage } from "./fx.js";
@@ -47,7 +47,7 @@ function loadSave() {
     const raw = localStorage.getItem(CONFIG.saveKey);
     if (!raw) return null;
     const st = JSON.parse(raw);
-    if (!st || st.v !== 4 || st.over) return null;
+    if (!st || st.v !== 5 || st.over) return null;
     st.fx = [];
     return st;
   } catch { return null; }
@@ -362,6 +362,10 @@ function onClick(e) {
       $(".modal.reveal-m")?.remove();
       if (revealResolve) { const r = revealResolve; revealResolve = null; r(); }
     },
+    "agenda-continue": () => {
+      $(".modal.agenda-m")?.remove();
+      if (agendaResolveFn) { const r = agendaResolveFn; agendaResolveFn = null; r(); }
+    },
     "def-take": () => resolveDefense({ kind: "take" }),
     "def-hero": () => resolveDefense({ kind: "hero" }),
     "def-ally": () => resolveDefense({ kind: "ally", uid }),
@@ -506,7 +510,7 @@ function abilityFlow() {
     enterTarget(valid, STR.actions.chooseTarget, (id) => act(() => E.heroAbility(S, id)));
   } else if (kind === "thw1") {
     const valid = E.validTargets(S, "scheme");
-    if (valid.length === 1) { act(() => E.heroAbility(S, "scheme")); return; }
+    if (valid.length === 1) { act(() => E.heroAbility(S, valid[0])); return; }
     enterTarget(valid, STR.actions.chooseTarget, (id) => act(() => E.heroAbility(S, id)));
   } else act(() => E.heroAbility(S));
 }
@@ -514,13 +518,13 @@ function abilityFlow() {
 function thwartFlow() {
   if (S.hero.exhausted) { toast(STR.actions.heroExhausted); sfx.deny(); return; }
   const valid = E.validTargets(S, "scheme");
-  if (valid.length === 1) { act(() => E.basicThwart(S, "scheme")); return; }
+  if (valid.length === 1) { act(() => E.basicThwart(S, valid[0])); return; }
   enterTarget(valid, STR.actions.chooseTarget, (id) => act(() => E.basicThwart(S, id)));
 }
 
 function allyThwartFlow(uid) {
   const valid = E.validTargets(S, "scheme");
-  if (valid.length === 1) { act(() => E.allyAct(S, uid, "thwart", "scheme")); return; }
+  if (valid.length === 1) { act(() => E.allyAct(S, uid, "thwart", valid[0])); return; }
   enterTarget(valid, STR.actions.chooseTarget, (id) => act(() => E.allyAct(S, uid, "thwart", id)), `[data-fx="ally:${uid}"]`);
 }
 
@@ -599,6 +603,14 @@ async function runVillain() {
       commit();
       continue;
     }
+    if (S.vp.agenda != null) {
+      render();
+      await agendaModal(S.vp.agenda);
+      E.ackAgenda(S);
+      announce();
+      commit();
+      continue;
+    }
     await sleep(CONFIG.stepMs);
     if (!S || S.phase !== "villain" || S.over) break;
     E.stepVillain(S);
@@ -627,12 +639,43 @@ function showRecap() {
   sfx.turn();
 }
 
+let agendaResolveFn = null;
+function agendaModal(stageIdx) {
+  return new Promise((resolve) => {
+    agendaResolveFn = resolve;
+    const agenda = E.agendaDef(S);
+    const st = agenda.stages[stageIdx];
+    const el = document.createElement("div");
+    el.className = "modal reveal-m agenda-m";
+    el.innerHTML = `
+      <div class="modal-box reveal-box agenda-box">
+        <h3>${STR.agenda.title}</h3>
+        <div class="reveal-body">
+          <div class="reveal-card"><div class="cardface pcard f-void">
+            <div class="c-art"><img src="${artPath(agenda.art)}"></div>
+            <div class="c-name">${agenda.name}</div>
+            <div class="c-type">${tpl(STR.agenda.stageLabel, { n: stageIdx + 1, total: agenda.stages.length })} · ${esc(st.name)}</div>
+          </div></div>
+          <div class="reveal-notes">
+            <p>${esc(st.text)}</p>
+            <p class="dim">${STR.agenda.doomCarry}</p>
+          </div>
+        </div>
+        <button class="btn primary" data-act="agenda-continue">${STR.agenda.face}</button>
+      </div>`;
+    $("#overlays").appendChild(el);
+    sfx.stage();
+    VFX.wave(innerWidth / 2, innerHeight / 2, "#a184ff", 160);
+  });
+}
+
 let revealResolve = null;
 function revealModal(eid) {
   return new Promise((resolve) => {
     revealResolve = resolve;
     const e = ENCOUNTERS[eid];
     const notes = [STR.reveal[e.type] || ""];
+    if (e.crisis) notes.push(STR.reveal.crisis);
     if (e.quickstrike) notes.push(STR.reveal.quick);
     if (e.guard) notes.push(STR.reveal.guard);
     const el = document.createElement("div");
@@ -811,7 +854,20 @@ function showPile(title, items) {
 
 function closeTopModal() {
   const m = [...document.querySelectorAll(".modal")].filter((x) => !x.classList.contains("defense") && !x.classList.contains("end")).pop();
-  m?.remove();
+  if (!m) return;
+  // reveal/agenda modals gate an awaited promise in runVillain — Escape must
+  // resolve them like their button would, or the villain phase locks forever
+  if (m.classList.contains("agenda-m")) {
+    m.remove();
+    if (agendaResolveFn) { const r = agendaResolveFn; agendaResolveFn = null; r(); }
+    return;
+  }
+  if (m.classList.contains("reveal-m")) {
+    m.remove();
+    if (revealResolve) { const r = revealResolve; revealResolve = null; r(); }
+    return;
+  }
+  m.remove();
 }
 
 function toggleMute() {
@@ -854,12 +910,27 @@ function encCardHTML(eid, opts = {}) {
     </div>`;
 }
 
+// small chips summarizing the agenda stage's ongoing twist
+function agendaOngoingChips(aStage) {
+  const o = aStage.ongoing || {};
+  const parts = [];
+  if (o.atk) parts.push(`&#9876;+${o.atk}`);
+  if (o.sch) parts.push(`&#9737;+${o.sch}`);
+  if (o.minionAtk) parts.push(`minions &#9876;+${o.minionAtk}`);
+  if (o.doomPerRound) parts.push(`&#9670;+${o.doomPerRound}/rd`);
+  return parts.map((p) => `<span class="agchip">${p}</span>`).join("");
+}
+
 // ---------- main render ----------
 function render() {
   if (!S) return;
   const H = HEROES[S.heroId];
   const st = E.stage(S);
   const th = E.schemeThreshold(S);
+  const agenda = E.agendaDef(S);
+  const aStage = E.agendaStage(S);
+  const crisisLock = E.hasCrisis(S);
+  const agendaChips = agendaOngoingChips(aStage);
   const intentTxt = S.villainSealed ? STR.hud.intentSealed
     : S.intent === "attack" && S.villain.stun > 0 ? STR.hud.intentStunned
     : S.intent === "attack" ? `${STR.hud.intentAttack} ${E.villainAtkVal(S)}+?`
@@ -901,10 +972,11 @@ function render() {
   const sideHTML = S.sideSchemes.map((ss) => {
     const e = ENCOUNTERS[ss.c];
     return `
-    <div class="card sscard ${targetable(ss.uid)}" data-target="${ss.uid}" data-prev="e:${ss.c}" data-fx="side:${ss.uid}">
+    <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-prev="e:${ss.c}" data-fx="side:${ss.uid}">
       <div class="c-art"><img src="${artPath(ss.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
       <div class="ss-threat">&#9670; <b>${ss.threat}</b></div>
+      ${e.crisis ? `<div class="kw crisis-kw" data-tip="${esc(STR.tips.crisis)}">&#128274; CRISIS</div>` : ""}
     </div>`;
   }).join("");
 
@@ -992,13 +1064,15 @@ function render() {
         ${hpbarHTML("", Math.max(0, 100 * S.villain.hp / (st.hp + CONFIG.difficulty[S.difficulty].villainHpBonus)), String(S.villain.hp))}
         ${attachHTML ? `<div class="chips">${attachHTML}</div>` : ""}
       </div>
-      <div class="card scheme ${targetable("scheme")}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme">
-        <div class="c-art"><img src="${artPath(SCHEME.art)}" alt=""></div>
-        <div class="c-name">${SCHEME.name}</div>
+      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme">
+        <div class="c-art"><img src="${artPath(agenda.art)}" alt=""></div>
+        ${crisisLock ? `<div class="crisis-lock" data-tip="${esc(STR.tips.crisis)}">&#128274;</div>` : ""}
+        <div class="c-name">${agenda.name}</div>
         <div class="threat-track" data-tip="${esc(STR.tips.doom)}">
           <b class="tnum">${S.scheme.threat}<span>/${th}</span></b>
           <div class="pips">${Array.from({ length: th }, (_, i) => `<i class="${i < S.scheme.threat ? "on" : ""}"></i>`).join("")}</div>
-          <div class="s-stage">${STR.hud.stage} ${S.scheme.stage + 1}/2</div>
+          <div class="s-stage">${esc(aStage.name)} · ${S.scheme.stage + 1}/${agenda.stages.length}</div>
+          ${agendaChips ? `<div class="agenda-chips">${agendaChips}</div>` : ""}
         </div>
       </div>
       <div class="sideschemes">${sideHTML}</div>
@@ -1118,8 +1192,8 @@ function renderInspector() {
       <div class="c-text">ATK ${E.villainAtkVal(S)} · SCHEME ${E.villainSchVal(S)} · ${STR.hud.hp} ${S.villain.hp}</div></div>`;
     flavor = "The crown remembers a king. The king remembers nothing.";
   } else if (key === "s") {
-    inner = `<div class="cardface pcard f-void"><div class="c-art"><img src="${artPath(SCHEME.art)}"></div>
-      <div class="c-name">${SCHEME.name}</div><div class="c-type">MAIN SCHEME</div><div class="c-text">${SCHEME.text}</div></div>`;
+    inner = `<div class="cardface pcard f-void"><div class="c-art"><img src="${artPath(E.agendaDef(S).art)}"></div>
+      <div class="c-name">${E.agendaDef(S).name}</div><div class="c-type">AGENDA · ${esc(E.agendaStage(S).name)}</div><div class="c-text">${E.agendaStage(S).text}</div></div>`;
   } else if (key === "h") {
     const H = HEROES[S.heroId];
     inner = `<div class="cardface pcard f-${H.color}"><div class="c-art"><img src="${artPath(H.art)}"></div>
@@ -1229,6 +1303,19 @@ function drainFx() {
         for (const m of S.minions) VFX.burstAt(anchorEl("minion:" + m.uid), "spark", 16, 1.1);
         break;
       case "doomPulse": pulseVig("vig-doom"); VFX.burstAt(anchorEl("scheme"), "void", 14); break;
+      case "agenda":
+        sfx.stage();
+        shake($(".game"), true);
+        VFX.waveAt(anchorEl("scheme"), "#a184ff", 220);
+        VFX.burstAt(anchorEl("scheme"), "void", 34, 1.8);
+        // during the villain phase runVillain shows the blocking modal itself
+        if (S.phase !== "villain") agendaModal(f.stage).then(() => {});
+        break;
+      case "crisisBlock":
+        sfx.deny();
+        floatText(anchorEl("scheme"), "\u{1F512} CRISIS", "threat");
+        shake(anchorEl("scheme"));
+        break;
       case "boostReveal":
         sfx.reveal();
         revealFlash(f.card);

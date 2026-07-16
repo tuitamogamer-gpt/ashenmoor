@@ -1170,3 +1170,26 @@ body.coop .logpanel { top: 46px; }
   padding: 8px 12px; border-radius: 0 8px 8px 0;
   margin: 6px 0;
 }
+
+/* ---------- v1.7 The Grand Design: agendas & crisis ---------- */
+.scheme.crisis-locked { box-shadow: 0 0 0 2px #c9563f66, 0 0 22px #c9563f33; }
+.crisis-lock {
+  position: absolute; top: 6px; right: 6px; z-index: 3;
+  font-size: 15px; background: #1c0f12ee; border: 1px solid #c9563f;
+  border-radius: 8px; padding: 2px 6px; cursor: help;
+  animation: crisisPulse 1.6s ease-in-out infinite;
+}
+@keyframes crisisPulse { 50% { box-shadow: 0 0 10px #c9563f88; } }
+.agenda-chips { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; margin-top: 3px; }
+.agchip {
+  font-size: 9px; letter-spacing: .04em; color: #d8a6ff;
+  background: #2a1f4577; border: 1px solid #4a3a75; border-radius: 6px; padding: 1px 5px;
+}
+.sscard.crisis { border-color: #c9563f; }
+.sscard .kw.crisis-kw {
+  background: #3a1410; border-color: #c9563f; color: #ff9c86;
+  cursor: help;
+}
+.modal.agenda-m .modal-box.agenda-box { border-color: #7a5cff; box-shadow: 0 0 44px #7a5cff44; }
+.modal.agenda-m h3 { color: #d8a6ff; }
+.reveal-notes p.dim { opacity: .65; font-size: 12px; }

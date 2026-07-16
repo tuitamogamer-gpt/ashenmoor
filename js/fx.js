@@ -98,19 +98,25 @@ let sfxBus = null;
 function bus(c) {
   if (!sfxBus) {
     sfxBus = c.createGain();
-    sfxBus.gain.value = muted ? 0 : 0.9;
+    sfxBus.gain.value = muted ? 0 : 0.9 * volSfx;
     sfxBus.connect(c.destination);
   }
   return sfxBus;
 }
 
-export function setMuted(m) {
-  muted = m;
-  if (sfxBus) sfxBus.gain.value = muted ? 0 : 0.9;
-  if (drone) drone.gain.gain.value = muted ? 0 : DRONE_VOL;
-  if (music) music.out.gain.value = muted ? 0 : 1;
+let volMusic = 1, volSfx = 1;
+function applyGains() {
+  if (sfxBus) sfxBus.gain.value = muted ? 0 : 0.9 * volSfx;
+  if (music) music.out.gain.value = muted ? 0 : volMusic;
+  if (drone) drone.gain.gain.value = muted ? 0 : DRONE_VOL * volMusic;
 }
+export function setMuted(m) { muted = m; applyGains(); }
 export function isMuted() { return muted; }
+export function setVolumes(m, s) {
+  volMusic = Math.max(0, Math.min(1, m));
+  volSfx = Math.max(0, Math.min(1, s));
+  applyGains();
+}
 
 // play a sample; false = not available, caller should synth-fallback
 function playBuf(name) {
@@ -256,7 +262,7 @@ export function startMusic() {
   const c = ac();
   if (!c || music) return;
   const out = c.createGain();
-  out.gain.value = muted ? 0 : 1;
+  out.gain.value = muted ? 0 : volMusic;
   out.connect(c.destination);
   music = { out, amb: null, legacy: null };
   syncAmbience();
@@ -335,7 +341,7 @@ function realStartDrone() {
   const c = ctx;
   if (!c || drone || !droneWanted) return;
   const g = c.createGain();
-  g.gain.value = muted ? 0 : DRONE_VOL;
+  g.gain.value = muted ? 0 : DRONE_VOL * volMusic;
   const f = c.createBiquadFilter();
   f.type = "lowpass";
   f.frequency.value = 220;

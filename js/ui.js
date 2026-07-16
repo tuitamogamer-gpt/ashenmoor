@@ -6,7 +6,7 @@ import { CONFIG } from "./config.js";
 import { HEROES, CARDS, ENCOUNTERS, VILLAINS, artPath } from "./cards.js";
 import * as E from "./engine.js";
 import * as CAMP from "./campaign.js";
-import { sfx, setMuted, isMuted, floatText, shake, banner, startDrone, stopDrone, startMusic, stopMusic, setMusicStage } from "./fx.js";
+import { sfx, setMuted, isMuted, setVolumes, floatText, shake, banner, startDrone, stopDrone, startMusic, stopMusic, setMusicStage } from "./fx.js";
 import * as VFX from "./vfx.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -74,6 +74,8 @@ addEventListener("DOMContentLoaded", () => {
   else renderMenu();
   addEventListener("keydown", onKey);
   document.body.addEventListener("click", onClick);
+  document.body.addEventListener("input", onInput);
+  applySettings();
   document.body.addEventListener("dblclick", onDblClick);
   document.body.addEventListener("mouseover", onHover);
   document.body.addEventListener("mousemove", onTiltMove, { passive: true });
@@ -110,9 +112,21 @@ const anchorEl = (key) => (key ? document.querySelector(`[data-fx="${key}"]`) : 
 
 function onKey(e) {
   if (e.code === "Escape") { cancelModes(); closeTopModal(); render(); e.preventDefault(); }
+  else if ((e.code === "Enter" || e.code === "NumpadEnter") && S && mode === "pay" && !$(".modal")) { confirmPay(); e.preventDefault(); }
   else if (e.code === "KeyE" && S && E.canAct(S) && mode === "idle" && !running && !$(".modal")) { doEndTurn(); e.preventDefault(); }
   else if (e.code === "KeyH") { toggleHelp(); e.preventDefault(); }
   else if (e.code === "KeyM") { toggleMute(); e.preventDefault(); }
+}
+
+// ---------- player settings (persisted in prefs) ----------
+const SPEEDS = { slow: 1.6, normal: 1, fast: 0.55 };
+let speedMult = 1;
+function applySettings() {
+  const p = prefs();
+  setVolumes(p.volMusic ?? 1, p.volSfx ?? 1);
+  speedMult = SPEEDS[p.speed] ?? 1;
+  document.documentElement.classList.toggle("no-motion", !!p.fxReduced);
+  VFX.setIntensity(p.fxReduced ? 0.35 : 1);
 }
 
 // ---------- menu ----------
@@ -161,6 +175,7 @@ function renderMenu() {
       <button class="btn primary" data-act="begin">${STR.menu.start}</button>
       ${hasSave ? `<button class="btn" data-act="continue">${STR.menu.continue}</button>` : ""}
       <button class="btn" data-act="howto">${STR.menu.howToPlay}</button>
+      <button class="btn" data-act="settings">${STR.settings.title}</button>
       <button class="btn" data-act="mute">${STR.menu.mute}: ${isMuted() ? "OFF" : "ON"}</button>
     </div>
     <p class="credits">${wins.total ? `${STR.menu.wins}: ${wins.total} · ` : ""}${STR.menu.version} · card art generated with OpenArt (Seedream 4.5)</p>
@@ -333,7 +348,13 @@ function onClick(e) {
     "continue": () => { const st = loadSave(); if (st) { S = st; document.body.className = "in-game"; startDrone(); startMusic(); resetModes(); render(); if (S.phase === "villain") { vpLogStart = S.log.length; runVillain(); } } },
     "howto": () => toggleHelp(true),
     "mute": () => toggleMute(),
-    "menu": () => { if (COOP.on) return; if (!running) { save(); renderMenu(); } },
+    "menu": () => { if (COOP.on) return; if (!running) openPauseMenu(); },
+    "pm-help": () => { $(".modal.pausemenu")?.remove(); toggleHelp(true); },
+    "pm-restart": () => { $(".modal.pausemenu")?.remove(); localStorage.removeItem(CONFIG.saveKey); if (S && S.isCampaign) startCampaignGame(); else startGame(); },
+    "pm-mainmenu": () => { $(".modal.pausemenu")?.remove(); save(); renderMenu(); },
+    "settings": () => openSettings(),
+    "set-speed": () => { setPrefs({ speed: uid }); applySettings(); sfx.click(); document.querySelectorAll("[data-act='set-speed']").forEach((b) => b.classList.toggle("primary", b.dataset.uid === uid)); },
+    "set-fx": () => { setPrefs({ fxReduced: uid === "reduced" }); applySettings(); sfx.click(); document.querySelectorAll("[data-act='set-fx']").forEach((b) => b.classList.toggle("primary", b.dataset.uid === uid)); },
     "coop-hero": () => { COOP.myHero = id; sfx.click(); renderCoopLobby(); coopMaybeStart(); },
     "coop-beacon": () => { coopSend({ type: "action", action: { kind: "beacon" } }); toast(STR.coop.beaconSent); sfx.rally(); },
     "coop-reset": () => { $(".modal.coop-final")?.remove(); coopSend({ type: "reset" }); },
@@ -611,7 +632,7 @@ async function runVillain() {
       commit();
       continue;
     }
-    await sleep(CONFIG.stepMs);
+    await sleep(CONFIG.stepMs * speedMult);
     if (!S || S.phase !== "villain" || S.over) break;
     E.stepVillain(S);
     announce();
@@ -852,6 +873,69 @@ function showPile(title, items) {
   $("#overlays").appendChild(el);
 }
 
+// ---------- pause menu & settings ----------
+function settingsHTML() {
+  const p = prefs();
+  const speed = p.speed || "normal";
+  const spBtn = (id, label) => `<button class="btn small ${speed === id ? "primary" : ""}" data-act="set-speed" data-uid="${id}">${label}</button>`;
+  return `
+    <div class="settings">
+      <label class="set-row"><span>${STR.settings.music}</span>
+        <input type="range" min="0" max="100" value="${Math.round((p.volMusic ?? 1) * 100)}" data-vol="music"></label>
+      <label class="set-row"><span>${STR.settings.sfx}</span>
+        <input type="range" min="0" max="100" value="${Math.round((p.volSfx ?? 1) * 100)}" data-vol="sfx"></label>
+      <div class="set-row"><span>${STR.settings.speed}</span>
+        <div class="set-btns">${spBtn("slow", STR.settings.slow)}${spBtn("normal", STR.settings.normalSpeed)}${spBtn("fast", STR.settings.fast)}</div></div>
+      <div class="set-row"><span>${STR.settings.effects}</span>
+        <div class="set-btns">
+          <button class="btn small ${p.fxReduced ? "" : "primary"}" data-act="set-fx" data-uid="full">${STR.settings.full}</button>
+          <button class="btn small ${p.fxReduced ? "primary" : ""}" data-act="set-fx" data-uid="reduced">${STR.settings.reduced}</button>
+        </div></div>
+      <div class="set-keys">${STR.settings.shortcuts}</div>
+    </div>`;
+}
+
+function openPauseMenu() {
+  const el = document.createElement("div");
+  el.className = "modal pausemenu";
+  el.innerHTML = `
+    <div class="modal-box pause-box">
+      <h3>${STR.pause.title}</h3>
+      <div class="pause-btns">
+        <button class="btn primary" data-act="close-modal">${STR.pause.resume}</button>
+        <button class="btn" data-act="pm-help">${STR.pause.howto}</button>
+        <button class="btn" data-act="pm-restart">${STR.pause.restart}</button>
+        <button class="btn danger" data-act="pm-mainmenu">${STR.pause.mainMenu}</button>
+      </div>
+      <h4>${STR.settings.title}</h4>
+      ${settingsHTML()}
+    </div>`;
+  $("#overlays").appendChild(el);
+  sfx.click();
+}
+
+function openSettings() {
+  const el = document.createElement("div");
+  el.className = "modal pausemenu";
+  el.innerHTML = `
+    <div class="modal-box pause-box">
+      <h3>${STR.settings.title}</h3>
+      ${settingsHTML()}
+      <button class="btn primary" data-act="close-modal">${STR.help.close}</button>
+    </div>`;
+  $("#overlays").appendChild(el);
+  sfx.click();
+}
+
+function onInput(e) {
+  const vol = e.target?.dataset?.vol;
+  if (!vol) return;
+  const v = (+e.target.value || 0) / 100;
+  if (vol === "music") setPrefs({ volMusic: v });
+  else { setPrefs({ volSfx: v }); sfx.click(); }
+  applySettings();
+}
+
 function closeTopModal() {
   const m = [...document.querySelectorAll(".modal")].filter((x) => !x.classList.contains("defense") && !x.classList.contains("end")).pop();
   if (!m) return;
@@ -1008,23 +1092,25 @@ function render() {
       <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}">&#10038; ${H.ability.name}</button>
     </div>` : "";
 
+  // floating action dock: pay/target controls live beside the hand, not up top
   const payBar = mode === "pay" ? (() => {
     const card = CARDS[E.handCard(S, payCtx.uid).c];
     const need = E.effCost(S, card);
     const sum = [...payCtx.chosen].reduce((n, p) => n + E.resValue(E.handCard(S, p).c), 0);
+    const ok = sum >= need;
     return `
-      <div class="mode-bar">
-        <span>${tpl(STR.actions.payPrompt, { n: need })} — <b>${tpl(STR.actions.paySelected, { sum, n: need })}</b></span>
-        <button class="btn small" data-act="pay-auto">${STR.actions.auto}</button>
-        <button class="btn small primary ${sum < need ? "off" : ""}" data-act="pay-confirm">${STR.actions.confirm}</button>
-        <button class="btn small" data-act="cancel">${STR.actions.cancel}</button>
+      <div class="action-dock">
+        <div class="dock-count ${ok ? "ok" : ""}">${sum}<span>/${need}</span></div>
+        <button class="dock-btn confirm ${ok ? "" : "off"}" data-act="pay-confirm" data-tip="${esc(STR.dock.confirm)}">&#10003;</button>
+        <button class="dock-btn" data-act="pay-auto" data-tip="${esc(STR.dock.auto)}">&#10227;</button>
+        <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
       </div>`;
   })() : "";
 
   const targetBar = mode === "target" ? `
-    <div class="mode-bar target-bar">
-      <span>${targetCtx.label}</span>
-      <button class="btn small" data-act="cancel">${STR.actions.cancel}</button>
+    <div class="action-dock target-dock">
+      <div class="dock-label">${targetCtx.label}</div>
+      <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
     </div>` : "";
 
   document.body.className = "in-game";

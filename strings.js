@@ -16,7 +16,7 @@ export const STR = {
     nightmareHint: "Nightmare: the villain has more health and his agenda needs less doom per stage.",
     start: "Begin the Vigil",
     mute: "Sound",
-    version: "v1.7 · The Grand Design",
+    version: "v1.8 · Comfort",
   },
   coop: {
     title: "TWIN VIGILS",
@@ -212,6 +212,32 @@ export const STR = {
   vp: {
     recapTitle: "The Villain's Move — recap",
     begin: "Begin your turn",
+  },
+  pause: {
+    title: "Paused",
+    resume: "Resume",
+    howto: "How to Play",
+    restart: "Restart this game",
+    mainMenu: "Save & Main Menu",
+    settings: "Settings",
+  },
+  settings: {
+    title: "Settings",
+    music: "Music & ambience",
+    sfx: "Sound effects",
+    speed: "Villain phase speed",
+    slow: "Slow",
+    normalSpeed: "Normal",
+    fast: "Fast",
+    effects: "Visual effects",
+    full: "Full",
+    reduced: "Reduced",
+    shortcuts: "Shortcuts: E end turn · Enter confirm · Esc cancel · H help · M mute",
+  },
+  dock: {
+    confirm: "Confirm & play (Enter)",
+    auto: "Auto-select payment",
+    cancel: "Cancel (Esc)",
   },
   reveal: {
     title: "Encounter revealed!",

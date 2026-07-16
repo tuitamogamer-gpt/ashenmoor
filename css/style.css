@@ -1193,3 +1193,61 @@ body.coop .logpanel { top: 46px; }
 .modal.agenda-m .modal-box.agenda-box { border-color: #7a5cff; box-shadow: 0 0 44px #7a5cff44; }
 .modal.agenda-m h3 { color: #d8a6ff; }
 .reveal-notes p.dim { opacity: .65; font-size: 12px; }
+
+/* ---------- v1.8 Comfort: action dock, pause menu, settings ---------- */
+.action-dock {
+  position: fixed; right: 14px; bottom: 170px; z-index: 240;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 12px 10px; border-radius: 40px;
+  background: #12101cee; border: 1px solid #3a3357;
+  box-shadow: 0 8px 30px #000c, 0 0 22px #7a5cff22;
+  animation: dockIn .22s ease-out;
+}
+@keyframes dockIn { from { transform: translateX(24px); opacity: 0; } }
+.dock-count {
+  font-family: "Cinzel", serif; font-size: 17px; font-weight: 700;
+  color: #ffb35c; line-height: 1; padding: 2px 0;
+}
+.dock-count span { font-size: 12px; opacity: .7; }
+.dock-count.ok { color: #6fdc8f; }
+.dock-btn {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 1px solid #4a4370; background: #201c33; color: #cfc7ee;
+  font-size: 19px; cursor: pointer; display: grid; place-items: center;
+  transition: transform .12s, box-shadow .12s;
+}
+.dock-btn:hover { transform: scale(1.1); }
+.dock-btn.confirm { background: #1d3a2a; border-color: #3fc97a; color: #7dffab; box-shadow: 0 0 14px #3fc97a55; }
+.dock-btn.confirm.off { opacity: .35; box-shadow: none; cursor: default; }
+.dock-btn.danger { background: #33161b; border-color: #c9563f; color: #ff9c86; }
+.dock-btn.confirm:not(.off) { animation: dockPulse 1.4s ease-in-out infinite; }
+@keyframes dockPulse { 50% { box-shadow: 0 0 22px #3fc97a88; } }
+.dock-label {
+  max-width: 120px; text-align: center; font-size: 12px; color: #cfc7ee; line-height: 1.3;
+}
+.action-dock [data-tip]:hover::after { left: auto; right: 54px; top: 50%; transform: translateY(-50%); bottom: auto; }
+
+.modal.pausemenu .modal-box.pause-box { min-width: min(440px, 92vw); text-align: left; }
+.pause-box h3 { font-family: "Cinzel", serif; margin-bottom: 14px; }
+.pause-box h4 { margin: 18px 0 8px; color: #a99ecf; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.pause-btns { display: flex; flex-direction: column; gap: 8px; }
+.pause-btns .btn { width: 100%; }
+.btn.danger { border-color: #c9563f; color: #ff9c86; }
+.settings .set-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 7px 0; border-bottom: 1px solid #ffffff0d; font-size: 13.5px; color: #d9d2f0;
+}
+.settings input[type="range"] {
+  width: 150px; accent-color: #7a5cff; cursor: pointer;
+}
+.set-btns { display: flex; gap: 6px; }
+.set-keys { margin-top: 10px; font-size: 11px; opacity: .55; line-height: 1.5; }
+
+.no-motion .shake, .no-motion .shake-hard { animation: none !important; }
+.no-motion .banner { animation-duration: .01s !important; }
+.no-motion .lunge { animation: none !important; }
+
+@media (max-width: 760px) {
+  .action-dock { right: 8px; bottom: 140px; padding: 9px 7px; gap: 7px; }
+  .dock-btn { width: 40px; height: 40px; font-size: 16px; }
+}

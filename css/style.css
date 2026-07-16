@@ -143,10 +143,43 @@ button { font-family: inherit; }
   align-items: flex-start;
   justify-content: center;
   gap: 14px;
-  padding: 12px 10px 6px;
+  margin: 8px 10px 0;
+  padding: 22px 10px 16px;
   flex-wrap: wrap;
+  background: linear-gradient(180deg, rgba(32, 24, 56, 0.38), rgba(16, 13, 26, 0.12));
+  border: 1px solid #2c2347;
+  border-radius: 14px;
+  position: relative;
 }
-.board { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; padding: 4px 10px; min-height: 40px; }
+.villain-zone::before {
+  content: "THE HOLLOW COURT";
+  position: absolute; top: 6px; left: 16px;
+  font-size: 9px; letter-spacing: 0.24em;
+  color: #7a68b8;
+  pointer-events: none;
+}
+.board {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 8px 10px 2px;
+  padding: 20px 10px 14px;
+  min-height: 64px;
+  background: linear-gradient(180deg, rgba(18, 32, 30, 0.32), rgba(11, 17, 16, 0.1));
+  border: 1px solid #1f3d37;
+  border-radius: 14px;
+  position: relative;
+}
+.board::before {
+  content: "YOUR ALLIES & UPGRADES";
+  position: absolute; top: 6px; left: 16px;
+  font-size: 9px; letter-spacing: 0.24em;
+  color: #3f8d81;
+  pointer-events: none;
+}
 .upgrades, .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .chip {
   background: var(--panel2);
@@ -627,7 +660,8 @@ button { font-family: inherit; }
   .endturn { width: 86px; height: 46px; font-size: 12px; }
   .hero-actions { gap: 3px; }
   .btn.small { padding: 4px 8px; font-size: 11px; }
-  .villain-zone { padding: 8px 8px 4px; gap: 10px; }
+  .villain-zone { padding: 18px 8px 12px; gap: 10px; margin: 6px 6px 0; }
+  .board { margin: 6px 6px 2px; padding: 16px 8px 10px; }
   .hero-zone { padding: 6px 10px 8px; }
   .board { padding: 2px 8px; min-height: 24px; }
   .inspector { top: 48px; width: 170px; }
@@ -1123,3 +1157,16 @@ body.coop .logpanel { top: 46px; }
 }
 .leg b { display: block; font-size: 12.5px; color: #f0e6d2; }
 .leg span { font-size: 11.5px; color: var(--dim); line-height: 1.4; }
+
+/* encounter reveal modal */
+.modal.reveal-m .modal-box.reveal-box { border-color: var(--void); min-width: min(520px, 94vw); }
+.reveal-body { display: flex; gap: 16px; align-items: flex-start; margin: 8px 0 14px; flex-wrap: wrap; }
+.reveal-card { width: 172px; aspect-ratio: 5 / 7; flex: none; animation: revealIn 0.3s ease-out; }
+.reveal-notes { flex: 1; min-width: 200px; }
+.reveal-notes p {
+  font-size: 13.5px; line-height: 1.55; color: #d9ccff;
+  background: rgba(20, 16, 34, 0.6);
+  border-left: 2px solid var(--void);
+  padding: 8px 12px; border-radius: 0 8px 8px 0;
+  margin: 6px 0;
+}

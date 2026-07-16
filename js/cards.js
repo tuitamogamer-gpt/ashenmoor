@@ -30,6 +30,7 @@ export const HEROES = {
       "emberbrand", "emberbrand",
       "wardplate",
       "stagger", "stagger",
+      "wardens_beacon", "wardens_beacon",
       "wardens_resolve", "wardens_resolve", "wardens_resolve",
     ],
   },
@@ -58,6 +59,7 @@ export const HEROES = {
       "focus_crystal", "focus_crystal",
       "sigil_of_clarity", "sigil_of_clarity",
       "hex_of_cinders", "hex_of_cinders",
+      "wardens_beacon", "wardens_beacon",
       "wardens_resolve", "wardens_resolve", "wardens_resolve",
     ],
   },
@@ -86,6 +88,7 @@ export const HEROES = {
       "vigil_banner", "vigil_banner",
       "last_bastion", "last_bastion",
       "judgment_bell", "judgment_bell",
+      "wardens_beacon", "wardens_beacon",
       "wardens_resolve", "wardens_resolve", "wardens_resolve",
     ],
   },
@@ -327,6 +330,12 @@ export const CARDS = {
     flavor: "It still hums with the Heart's pulse.",
   },
   // ---- shared ----
+  wardens_beacon: {
+    name: "Warden's Beacon", type: "event", cost: 1, faction: "neutral",
+    text: "Remove 2 doom from a scheme.",
+    flavor: "One light, held against the tide.",
+    effect: { thwart: 2 },
+  },
   wardens_resolve: {
     name: "Warden's Resolve", type: "resource", cost: null, faction: "neutral",
     res: 2,

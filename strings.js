@@ -16,7 +16,7 @@ export const STR = {
     nightmareHint: "Nightmare: the Hollow King has more health and the Hollowing needs less doom.",
     start: "Begin the Vigil",
     mute: "Sound",
-    version: "v1.4 · The Long Vigil",
+    version: "v1.5 · The Beacon",
   },
   coop: {
     title: "TWIN VIGILS",
@@ -209,6 +209,16 @@ export const STR = {
   vp: {
     recapTitle: "The Villain's Move — recap",
     begin: "Begin your turn",
+  },
+  reveal: {
+    title: "Encounter revealed!",
+    resolve: "Resolve it",
+    minion: "A minion — it spawns now and will attack every villain phase until slain.",
+    treachery: "A treachery — read it: its effect resolves right now, then it is discarded.",
+    attachment: "An attachment — it latches onto the villain and empowers him permanently.",
+    sidescheme: "A side scheme — it takes root with its own ◆ doom and an ongoing effect until you disrupt it to 0.",
+    quick: "⚡ Quickstrike — it will attack you immediately!",
+    guard: "🛡 GUARD — the villain cannot be attacked while it lives.",
   },
   hints: {
     firstHand: "Tap a card, then Play. You pay its cost by discarding other cards.",

@@ -507,6 +507,7 @@ export function endTurn(S) {
   S.vp = {
     queue: ["doom", "villain", ...S.minions.map((m) => "minion:" + m.uid), "reveal", "cleanup"],
     pending: null,
+    revealed: null,
   };
   return null;
 }
@@ -534,7 +535,7 @@ function queueAttack(S, attacker) {
 }
 
 export function stepVillain(S) {
-  if (S.over || S.phase !== "villain" || S.vp.pending) return;
+  if (S.over || S.phase !== "villain" || S.vp.pending || S.vp.revealed) return;
   const step = S.vp.queue.shift();
   if (!step) { S.phase = "player"; return; }
   if (step === "doom") {
@@ -595,6 +596,8 @@ export function stepVillain(S) {
   }
 }
 
+// draw the encounter card and PAUSE — the UI shows it to the player,
+// then calls resolveReveal() to actually execute it
 function revealEncounter(S) {
   if (S.enc.deck.length === 0) {
     S.enc.deck = shuffle(S, S.enc.discard);
@@ -602,9 +605,16 @@ function revealEncounter(S) {
     if (S.enc.deck.length === 0) return;
   }
   const id = S.enc.deck.pop();
-  const e = ENCOUNTERS[id];
-  log(S, t(L.reveal, { t: e.name }), "bad");
+  log(S, t(L.reveal, { t: ENCOUNTERS[id].name }), "bad");
   fx(S, { kind: "reveal", card: id });
+  S.vp.revealed = id;
+}
+
+export function resolveReveal(S) {
+  const id = S.vp.revealed;
+  if (!id) return;
+  S.vp.revealed = null;
+  const e = ENCOUNTERS[id];
   if (e.type === "minion") {
     const m = spawnMinion(S, id);
     if (m && e.quickstrike && !S.over) {

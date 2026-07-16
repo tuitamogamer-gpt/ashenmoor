@@ -358,6 +358,10 @@ function onClick(e) {
     "hero": () => { sel = { kind: "hero" }; render(); },
     "discard": () => showPile(STR.hud.discard, S.discard.map((c) => ({ kind: "p", id: c }))),
     "enc-discard": () => showPile(STR.hud.encounterDeck + " — " + STR.hud.discard, S.enc.discard.map((c) => ({ kind: "e", id: c }))),
+    "reveal-resolve": () => {
+      $(".modal.reveal-m")?.remove();
+      if (revealResolve) { const r = revealResolve; revealResolve = null; r(); }
+    },
     "def-take": () => resolveDefense({ kind: "take" }),
     "def-hero": () => resolveDefense({ kind: "hero" }),
     "def-ally": () => resolveDefense({ kind: "ally", uid }),
@@ -587,6 +591,14 @@ async function runVillain() {
       commit();
       continue;
     }
+    if (S.vp.revealed) {
+      render();
+      await revealModal(S.vp.revealed);
+      E.resolveReveal(S);
+      announce();
+      commit();
+      continue;
+    }
     await sleep(CONFIG.stepMs);
     if (!S || S.phase !== "villain" || S.over) break;
     E.stepVillain(S);
@@ -613,6 +625,32 @@ function showRecap() {
     </div>`;
   $("#overlays").appendChild(el);
   sfx.turn();
+}
+
+let revealResolve = null;
+function revealModal(eid) {
+  return new Promise((resolve) => {
+    revealResolve = resolve;
+    const e = ENCOUNTERS[eid];
+    const notes = [STR.reveal[e.type] || ""];
+    if (e.quickstrike) notes.push(STR.reveal.quick);
+    if (e.guard) notes.push(STR.reveal.guard);
+    const el = document.createElement("div");
+    el.className = "modal reveal-m";
+    el.innerHTML = `
+      <div class="modal-box reveal-box">
+        <h3>${STR.reveal.title}</h3>
+        <div class="reveal-body">
+          <div class="reveal-card">${encCardHTML(eid)}</div>
+          <div class="reveal-notes">
+            ${notes.map((n) => `<p>${n}</p>`).join("")}
+          </div>
+        </div>
+        <button class="btn primary" data-act="reveal-resolve">${STR.reveal.resolve}</button>
+      </div>`;
+    $("#overlays").appendChild(el);
+    sfx.reveal();
+  });
 }
 
 function defenseModal(o) {
@@ -1163,7 +1201,7 @@ function drainFx() {
       case "kill": sfx.kill(); VFX.burstAt(anchor, "soul", 26, 1.2); VFX.waveAt(anchor, "#a184ff", 110); break;
       case "incoming": sfx.incoming(); break;
       case "tear": sfx.dmg(); break;
-      case "reveal": sfx.reveal(); revealFlash(f.card); VFX.wave(innerWidth / 2, innerHeight / 2 - 40, "#a184ff", 150); break;
+      case "reveal": VFX.wave(innerWidth / 2, innerHeight / 2 - 40, "#a184ff", 150); break;
       case "banner":
         banner(esc(f.text), f.tone === "stage" ? "stage" : "bad");
         sfx.stage();

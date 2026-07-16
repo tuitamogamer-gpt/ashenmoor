@@ -242,6 +242,7 @@ function villainPhase(S) {
   let guard = 0;
   while (S.phase === "villain" && !S.over && guard++ < 300) {
     if (S.vp.pending) defend(S);
+    else if (S.vp.revealed) E.resolveReveal(S);
     else E.stepVillain(S);
   }
 }

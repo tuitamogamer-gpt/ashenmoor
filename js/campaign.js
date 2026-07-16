@@ -11,9 +11,9 @@ const MIN_DECK = 20;
 
 export const RELICS = ["cinder_of_the_first_flame", "wardens_oath", "shard_of_the_spire"];
 export const HERO_EXTRAS = {
-  kaelen: ["cleaving_arc", "battle_fury", "emberbrand", "stagger"],
-  sera: ["banish", "focus_crystal", "temporal_slip", "hex_of_cinders"],
-  odran: ["rally_the_watch", "vigil_banner", "stone_sentry", "judgment_bell"],
+  kaelen: ["cleaving_arc", "battle_fury", "emberbrand", "stagger", "wardens_beacon"],
+  sera: ["banish", "focus_crystal", "temporal_slip", "hex_of_cinders", "wardens_beacon"],
+  odran: ["rally_the_watch", "vigil_banner", "stone_sentry", "judgment_bell", "wardens_beacon"],
 };
 
 export function load() {

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ashenmoor",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/serve.mjs", "8642"],
+      "port": 8642
+    }
+  ]
+}

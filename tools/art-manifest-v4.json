@@ -1,0 +1,11 @@
+{
+  "model": "byte-plus-seedream-4-5",
+  "note": "v1.4 LONG VIGIL additions. OpenArt historyId -> asset id.",
+  "jobs": {
+    "hero_nul":                  { "historyId": "vLFruAoyCWXj9xRSJMPn", "ratio": "3:4" },
+    "cinder_of_the_first_flame": { "historyId": "xp5m4iLqh1Ytef4Ojv26", "ratio": "4:3" },
+    "wardens_oath":              { "historyId": "j9ZL8KkqviWcqTJ5nBel", "ratio": "4:3" },
+    "shard_of_the_spire":        { "historyId": "W02Ayu9nfiRj3cyNDeAK", "ratio": "4:3" },
+    "campaign_road":             { "historyId": "HqX5KVm168wtQAhQyRo8", "ratio": "16:9" }
+  }
+}

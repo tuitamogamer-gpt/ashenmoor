@@ -1,0 +1,56 @@
+id,role,type,description,size/ratio,style line ref,source
+cardback,card back for all face-down piles,image,shattered black spire sigil in rune ring,2:3,STYLE-1,generate
+villain_morvane,villain card art (all 3 stages),image,hollow undead king on obsidian throne,3:4,STYLE-1,generate
+scheme_hollowing,main scheme card art,image,gothic city drained into void rift,4:3,STYLE-1,generate
+bg_table,page background,image,dark stone altar table top-down,16:9,STYLE-1,generate
+thumbnail,deploy thumbnail / menu key art,image,two heroes vs hollow king over city,16:9,STYLE-1,generate
+favicon,deploy favicon / logo emblem,image,cracked bone crown with teal void glow,1:1,STYLE-1,generate
+hero_kaelen,hero card art,image,warrior with ember greatsword portrait,3:4,STYLE-1,generate
+ember_slash,player card art,image,fiery greatsword arc slash,4:3,STYLE-1,generate
+cleaving_arc,player card art,image,flame slash through several shadows,4:3,STYLE-1,generate
+battle_fury,player card art,image,roaring warrior burning fist,4:3,STYLE-1,generate
+second_wind,player card art,image,kneeling warrior healing embers,4:3,STYLE-1,generate
+bulwark,player card art,image,warrior bracing tower shield,4:3,STYLE-1,generate
+reckless_charge,player card art,image,warrior sprinting sword trailing fire,4:3,STYLE-1,generate
+rallying_cry,player card art,image,burning sword raised allies rising,4:3,STYLE-1,generate
+ashen_duelist,player card art,image,duelist woman twin blades smoke,4:3,STYLE-1,generate
+cinder_hound,player card art,image,ember hound glowing cracks,4:3,STYLE-1,generate
+emberbrand,player card art,image,rune-etched greatsword on anvil,4:3,STYLE-1,generate
+wardplate,player card art,image,rune breastplate on armor stand,4:3,STYLE-1,generate
+hero_sera,hero card art,image,silver-haired mage teal rift energy portrait,3:4,STYLE-1,generate
+rift_bolt,player card art,image,teal void lightning bolt,4:3,STYLE-1,generate
+unravel,player card art,image,dark magic threads unwoven,4:3,STYLE-1,generate
+veil_of_mist,player card art,image,protective silver-teal mist veil,4:3,STYLE-1,generate
+foresight,player card art,image,arcane eye in constellations,4:3,STYLE-1,generate
+banish,player card art,image,shadow pulled into collapsing portal,4:3,STYLE-1,generate
+temporal_slip,player card art,image,shattered hourglass frozen sand,4:3,STYLE-1,generate
+apprentice_scryer,player card art,image,apprentice with crystal orb visions,4:3,STYLE-1,generate
+sentinel_golem,player card art,image,stone and teal crystal guardian golem,4:3,STYLE-1,generate
+focus_crystal,player card art,image,levitating crystal focusing beams,4:3,STYLE-1,generate
+sigil_of_clarity,player card art,image,geometric sigil above grimoire,4:3,STYLE-1,generate
+wardens_resolve,player card art (shared),image,gauntlet fist with warden badge,4:3,STYLE-1,generate
+void_cultist,encounter minion art,image,masked cultist ritual dagger,4:3,STYLE-1,generate
+hollow_beast,encounter minion art,image,hollow-chested void beast,4:3,STYLE-1,generate
+rift_stalker,encounter minion art,image,predator emerging from reality tear,4:3,STYLE-1,generate
+creeping_despair,encounter treachery art,image,black tendrils over war map candles,4:3,STYLE-1,generate
+void_lash,encounter treachery art,image,void energy whip at viewer,4:3,STYLE-1,generate
+shattered_nerves,encounter treachery art,image,thoughts shattering like glass,4:3,STYLE-1,generate
+feast_of_shadows,encounter treachery art,image,king absorbing life essence,4:3,STYLE-1,generate
+whispers_of_the_spire,encounter treachery art,image,whispering faces spiral around knight,4:3,STYLE-1,generate
+crown_of_echoes,encounter attachment art,image,bone crown radiating echo rings,4:3,STYLE-1,generate
+void_edge,encounter attachment art,image,black blade dripping liquid void,4:3,STYLE-1,generate
+hero_odran,hero card art (v1.2),image,gravewarden knight tower shield censer lantern,3:4,STYLE-1,generate
+shield_wall,player card art,image,overlapping golden rune shields vs shadow wave,4:3,STYLE-1,generate
+verdict,player card art,image,golden warhammer swing smashing shadow,4:3,STYLE-1,generate
+rally_the_watch,player card art,image,gold banner over lantern watchmen line,4:3,STYLE-1,generate
+stand_fast,player card art,image,planted boots golden bulwark aura,4:3,STYLE-1,generate
+lantern_bearer,player card art,image,squire warding lantern vs darkness,4:3,STYLE-1,generate
+watch_captain,player card art,image,watch captain halberd battlements,4:3,STYLE-1,generate
+stone_sentry,player card art,image,stone statue knight gold cracks mausoleum,4:3,STYLE-1,generate
+aegis_plate,player card art,image,golden aegis sigil breastplate crypt,4:3,STYLE-1,generate
+vigil_banner,player card art,image,golden flame war banner in stone,4:3,STYLE-1,generate
+last_bastion,player card art,image,knight in golden dome vs dark tsunami,4:3,STYLE-1,generate
+hero_vexahl,villain card art (v1.2),image,sewn-eyed prophet obsidian shard crown chanting,3:4,STYLE-1,generate
+chant_of_hollowing,encounter treachery art,image,cultist circle teal soundwaves over city model,4:3,STYLE-1,generate
+silvered_tongue,encounter treachery art,image,silver light serpent whispering to knight,4:3,STYLE-1,generate
+herald_of_the_spire,encounter minion art,image,obsidian masked herald void banner cathedral,4:3,STYLE-1,generate

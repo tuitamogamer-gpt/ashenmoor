@@ -1,0 +1,24 @@
+{
+  "platform": "higgsfield deploy_game",
+  "games": {
+    "main": {
+      "game_id": "e8a21d9e-4882-4623-ba37-a4105b52ce86",
+      "slug": "vibrant-willow-676",
+      "url": "https://vibrant-willow-676.higgsfield.gg/",
+      "mode": "rules (solo stub logic.js)",
+      "version": "v1.4 The Long Vigil (3-act campaign, deck drafts/scars, villain Nul, relic cards)",
+      "zip_media_id_last": "9d6361e5-dee1-49d8-b59c-2251b78e3a04"
+    },
+    "coop": {
+      "game_id": "0d98be90-6fa7-49de-b43f-f122811fda69",
+      "slug": "happy-beam-779",
+      "url": "https://happy-beam-779.higgsfield.gg/",
+      "mode": "rules (real multiplayer logic.js, minPlayers 2)",
+      "version": "v1.0 Twin Vigils (linked duels, same seed, status sync + beacons)",
+      "zip_media_id_last": "2fbbb9d7-5533-4898-b97f-65a5fd8d8829",
+      "build": "same assets + coop-logic.js as logic.js + index.html with window.__COOP__=true (see scratchpad build step; rebuild: sed title/__COOP__ into index.html, cp coop-logic.js logic.js)"
+    }
+  },
+  "note": "To update either game: zip, media_upload, PUT, media_confirm(file), deploy_game WITH that game_id. Never omit game_id on update.",
+  "deployed": "2026-07-15"
+}

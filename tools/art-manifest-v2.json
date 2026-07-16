@@ -1,0 +1,21 @@
+{
+  "model": "byte-plus-seedream-4-5",
+  "note": "v1.2 MAELSTROM additions. OpenArt historyId -> asset id.",
+  "jobs": {
+    "hero_odran":          { "historyId": "scjQYFtWmEQqx7EmxW1r", "ratio": "3:4" },
+    "shield_wall":         { "historyId": "Qf5WU1ceTFgDPPVKWubC", "ratio": "4:3" },
+    "verdict":             { "historyId": "2Bsk0bekjhXUuykuXj5G", "ratio": "4:3" },
+    "rally_the_watch":     { "historyId": "krr8u5R2aIkLiDFqycvL", "ratio": "4:3" },
+    "stand_fast":          { "historyId": "dpYaALDRizW0DHYJ6FV2", "ratio": "4:3" },
+    "lantern_bearer":      { "historyId": "yaAKgVjL0KyW5uhdCVQP", "ratio": "4:3" },
+    "watch_captain":       { "historyId": "7FKFt3Frdwik4lyZ0nsW", "ratio": "4:3" },
+    "stone_sentry":        { "historyId": "l4bSpuxoMjxBcJDSmcfE", "ratio": "4:3" },
+    "aegis_plate":         { "historyId": "lNIc4V4llbq5va6KFEBw", "ratio": "4:3" },
+    "vigil_banner":        { "historyId": "eCwVUschuc4X8HNFXjSQ", "ratio": "4:3" },
+    "last_bastion":        { "historyId": "VHVeZSAEoU7ckkvGdnfj", "ratio": "4:3" },
+    "hero_vexahl":         { "historyId": "UK7Xx8P7cMRNgolYSd3S", "ratio": "3:4" },
+    "chant_of_hollowing":  { "historyId": "PkfnZIJBvs6W2MdPT893", "ratio": "4:3" },
+    "silvered_tongue":     { "historyId": "7dR2OL9N0PCOfXmhLYVW", "ratio": "4:3" },
+    "herald_of_the_spire": { "historyId": "0fJrvGFTo1Y9dYrPKwcU", "ratio": "4:3" }
+  }
+}

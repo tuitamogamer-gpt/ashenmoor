@@ -1,0 +1,13 @@
+{
+  "model": "byte-plus-seedream-4-5",
+  "note": "v1.3 ABYSS additions. OpenArt historyId -> asset id.",
+  "jobs": {
+    "ritual_of_the_crown": { "historyId": "eBVLQGMF9Eup1G55Dbkm", "ratio": "4:3" },
+    "harvest_of_souls":    { "historyId": "lLQpJZazoHz0dtA4zSEK", "ratio": "4:3" },
+    "the_great_chant":     { "historyId": "GYmCEXjhEsHOZxPL1LZE", "ratio": "4:3" },
+    "tithe_of_whispers":   { "historyId": "YFZRCnPuSGGpeG5uNn6z", "ratio": "4:3" },
+    "stagger":             { "historyId": "l84n2T6TqoYYjdUpMMpp", "ratio": "4:3" },
+    "hex_of_cinders":      { "historyId": "qsDtL2eNsjKXhBgUH0KM", "ratio": "4:3" },
+    "judgment_bell":       { "historyId": "6kxAo2F2DpVUMXZNmYTr", "ratio": "4:3" }
+  }
+}

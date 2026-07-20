@@ -37,6 +37,9 @@ export function start(heroId, difficulty) {
     deck: [...HEROES[heroId].deck],
     scars: 0,
     extraDoom: 0,
+    graceUsed: false,
+    lastLossScarred: false,
+    resolve: 0,
     history: [],
   };
   save(c);
@@ -49,12 +52,12 @@ export const isComplete = (c) => c.act >= ACTS.length;
 export const canRemove = (c) => c.deck.length > MIN_DECK;
 
 // three distinct draft choices: hero extras + relics not yet drafted twice
-export function draftOptions(c) {
+export function draftOptions(c, random = Math.random) {
   const owned = {};
   for (const id of c.deck) owned[id] = (owned[id] || 0) + 1;
   const pool = [...HERO_EXTRAS[c.heroId], ...RELICS].filter((id) => (owned[id] || 0) < 4);
   for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, 3);
@@ -76,8 +79,9 @@ export function removeCard(c, id) {
 // consequences: barely surviving scars you; letting the scheme advance haunts the next act
 export function applyWin(c, S) {
   c.history.push({ act: c.act, villain: ACTS[c.act], result: "win", rounds: S.stats.rounds, dmg: S.stats.dmgDealt });
-  if (S.hero.hp <= 3) c.scars++;
-  c.extraDoom = S.scheme.stage >= 1 ? 2 : 0;
+  if (S.hero.hp <= 2) c.scars++;
+  c.extraDoom = S.scheme.stage >= 1 ? 1 : 0;
+  c.resolve = 0;
   c.act++;
   save(c);
   return c;
@@ -85,7 +89,14 @@ export function applyWin(c, S) {
 
 export function applyLoss(c, S) {
   c.history.push({ act: c.act, villain: ACTS[c.act], result: "loss", rounds: S ? S.stats.rounds : 0, dmg: S ? S.stats.dmgDealt : 0 });
-  c.scars++;
+  if (c.graceUsed) {
+    c.scars++;
+    c.lastLossScarred = true;
+  } else {
+    c.graceUsed = true;
+    c.lastLossScarred = false;
+  }
+  c.resolve = Math.min(2, (c.resolve || 0) + 1);
   save(c);
   return c;
 }

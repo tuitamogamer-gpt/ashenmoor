@@ -12,7 +12,7 @@ export const CONFIG = {
   stepMs: 1350,          // pacing between villain-phase steps (slow enough to read)
   logCap: 250,
   difficulty: {
-    normal:    { villainHpBonus: 0, schemeThreshold: 8 },
-    nightmare: { villainHpBonus: 3, schemeThreshold: 7 },
+    normal:    { villainHpBonus: 0, villainAtkBonus: 0 },
+    nightmare: { villainHpBonus: 1, villainAtkBonus: 1 },
   },
 };

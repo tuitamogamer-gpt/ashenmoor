@@ -1,0 +1,20 @@
+{
+  "name": "ashenmoor",
+  "version": "1.9.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "check:syntax": "node tools/check.mjs",
+    "test": "node --test",
+    "test:sim": "GAMES=${GAMES:-500} node tools/sim.mjs",
+    "test:browser": "node tools/browser-smoke.mjs",
+    "check": "npm run check:syntax && npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

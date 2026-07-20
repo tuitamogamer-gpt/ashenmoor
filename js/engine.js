@@ -27,7 +27,7 @@ export const hasOngoing = (S, key) => S.sideSchemes.some((ss) => ENCOUNTERS[ss.c
 export const hasCrisis = (S) => S.sideSchemes.some((ss) => ENCOUNTERS[ss.c].crisis);
 export const minionAtkVal = (S, m) => ENCOUNTERS[m.c].atk + (hasOngoing(S, "minionAtk1") ? 1 : 0) + agendaMod(S, "minionAtk");
 export const villainAtkVal = (S) =>
-  stage(S).atk + S.villain.atkBuff + (hasOngoing(S, "villainAtk1") ? 1 : 0) + agendaMod(S, "atk") +
+  stage(S).atk + (CONFIG.difficulty[S.difficulty].villainAtkBonus || 0) + S.villain.atkBuff + (hasOngoing(S, "villainAtk1") ? 1 : 0) + agendaMod(S, "atk") +
   S.villain.attachments.reduce((n, id) => n + ((ENCOUNTERS[id].mod || {}).atk || 0), 0);
 export const villainSchVal = (S) =>
   stage(S).sch + agendaMod(S, "sch") +
@@ -59,7 +59,7 @@ export function newGame(heroId, villainId = "morvane", difficulty = "normal", se
     v: 5, seed: seedStr, rng: seedFrom(seedStr), difficulty,
     uidN: 0, round: 1, phase: "player", intent: "attack",
     heroId, villainId, isCampaign: !!opts.isCampaign,
-    hero: { hp: maxHp, maxHp, exhausted: false, shield: 0, abilityUsed: 0 },
+    hero: { hp: maxHp, maxHp, exhausted: false, shield: Math.max(0, opts.startShield || 0), abilityUsed: 0 },
     deck: [], hand: [], discard: [], allies: [], upgrades: [],
     villain: { stage: 0, hp: 0, atkBuff: 0, attachments: [], stun: 0, burn: 0, armorUsed: false },
     scheme: { stage: 0, threat: 0 },
@@ -76,7 +76,7 @@ export function newGame(heroId, villainId = "morvane", difficulty = "normal", se
   S.deck = shuffle(S, opts.deck && opts.deck.length ? opts.deck : H.deck);
   S.enc.deck = shuffle(S, villainDef(S).encDeck);
   if (opts.startDoom) S.scheme.threat = Math.min(opts.startDoom, schemeThreshold(S) - 1);
-  draw(S, H.handSize);
+  draw(S, H.handSize + Math.max(0, opts.openingHandBonus || 0));
   log(S, t(L.gameStart, { hero: H.name, villain: stage(S).title }), "sys");
   return S;
 }

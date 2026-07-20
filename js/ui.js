@@ -13,8 +13,19 @@ const $ = (s, r = document) => r.querySelector(s);
 const app = () => $("#app");
 const tpl = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : `{${k}}`));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const DEV = new URLSearchParams(location.search).has("dev");
+const QUERY = new URLSearchParams(location.search);
+const DEV = QUERY.has("dev");
+const TEST = QUERY.has("test");
+
+let virtualNow = 0;
+let virtualWaiters = [];
+
+const sleep = (ms) => {
+  if (!TEST) return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => {
+    virtualWaiters.push({ at: virtualNow + Math.max(0, ms), resolve });
+  });
+};
 
 let S = null;                 // game state
 let mode = "idle";            // idle | pay | target
@@ -27,6 +38,84 @@ let menuHero = null;
 let menuVillain = "morvane";
 let menuDiff = "normal";
 let defenseResolve = null;    // pending defense promise resolver
+let confirmAction = null;
+
+function gameSnapshot() {
+  if (!S) {
+    return {
+      screen: document.body.classList.contains("on-menu") ? "menu" : "loading",
+      selectedHero: menuHero,
+      selectedVillain: menuVillain,
+      difficulty: menuDiff,
+    };
+  }
+  const villain = E.stage(S);
+  return {
+    screen: S.over ? (S.over.win ? "victory" : "defeat") : S.phase,
+    mode,
+    running,
+    round: S.round,
+    difficulty: S.difficulty,
+    dailyId: S.dailyId || null,
+    intent: S.intent,
+    hero: {
+      id: S.heroId,
+      hp: S.hero.hp,
+      maxHp: S.hero.maxHp,
+      shield: S.hero.shield,
+      exhausted: S.hero.exhausted,
+      abilityUsed: S.hero.abilityUsed,
+    },
+    villain: {
+      id: S.villainId,
+      stage: S.villain.stage + 1,
+      title: villain.title,
+      hp: S.villain.hp,
+      stun: S.villain.stun,
+      burn: S.villain.burn,
+    },
+    agenda: {
+      stage: S.scheme.stage + 1,
+      threat: S.scheme.threat,
+      threshold: E.schemeThreshold(S),
+      crisis: E.hasCrisis(S),
+    },
+    hand: S.hand.map((h) => ({
+      uid: h.uid,
+      id: h.c,
+      cost: CARDS[h.c].type === "resource" ? "resource" : E.effCost(S, CARDS[h.c]),
+    })),
+    allies: S.allies.map((a) => ({ uid: a.uid, id: a.c, hp: a.hp, exhausted: a.exhausted })),
+    minions: S.minions.map((m) => ({ uid: m.uid, id: m.c, hp: m.hp, tough: !!m.tough })),
+    sideSchemes: S.sideSchemes.map((ss) => ({ uid: ss.uid, id: ss.c, threat: ss.threat })),
+    pendingDefense: S.vp?.pending ? E.defenseOptions(S) : null,
+    pendingReveal: S.vp?.revealed || null,
+    over: S.over,
+    coordinateSystem: "DOM card layout; actions target semantic IDs rather than coordinates.",
+  };
+}
+
+window.render_game_to_text = () => JSON.stringify(gameSnapshot());
+window.advanceTime = async (ms) => {
+  if (!TEST) {
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+    return window.render_game_to_text();
+  }
+  const end = virtualNow + Math.max(0, ms);
+  let guard = 0;
+  while (guard++ < 1000) {
+    virtualWaiters.sort((a, b) => a.at - b.at);
+    const next = virtualWaiters[0];
+    if (!next || next.at > end) break;
+    virtualWaiters.shift();
+    virtualNow = next.at;
+    next.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+  virtualNow = end;
+  return window.render_game_to_text();
+};
 
 // ---------- prefs / save ----------
 function prefs() {
@@ -65,6 +154,22 @@ addEventListener("DOMContentLoaded", () => {
   menuDiff = prefs().lastDiff || "normal";
   VFX.init();
   VFX.setAmbient(true);
+  new MutationObserver((records) => {
+    for (const record of records) for (const node of record.addedNodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      const modals = node.classList.contains("modal") ? [node] : [...node.querySelectorAll(".modal")];
+      for (const modal of modals) {
+        modal.setAttribute("role", "dialog");
+        modal.setAttribute("aria-modal", "true");
+        const heading = modal.querySelector("h1,h2,h3,h4");
+        if (heading) {
+          if (!heading.id) heading.id = `dialog-title-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          modal.setAttribute("aria-labelledby", heading.id);
+        }
+        queueMicrotask(() => modal.querySelector("button:not(:disabled),input:not(:disabled)")?.focus());
+      }
+    }
+  }).observe($("#overlays"), { childList: true, subtree: true });
   for (const id of ["vig-hurt", "vig-doom"]) {
     const d = document.createElement("div");
     d.id = id;
@@ -111,11 +216,35 @@ function pulseVig(id) {
 const anchorEl = (key) => (key ? document.querySelector(`[data-fx="${key}"]`) : null);
 
 function onKey(e) {
-  if (e.code === "Escape") { cancelModes(); closeTopModal(); render(); e.preventDefault(); }
+  const openModals = [...document.querySelectorAll(".modal")];
+  const topModal = openModals.at(-1);
+  if (e.code === "Tab" && topModal) {
+    const focusable = [...topModal.querySelectorAll('button:not(:disabled),input:not(:disabled),[tabindex="0"]')]
+      .filter((node) => node.offsetParent !== null);
+    if (focusable.length) {
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); return; }
+      if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); return; }
+    }
+  }
+  const keyboardTarget = e.target?.closest?.('[role="button"][data-act]');
+  if ((e.code === "Enter" || e.code === "Space") && keyboardTarget) {
+    keyboardTarget.click();
+    e.preventDefault();
+  } else if (e.code === "Escape") { cancelModes(); closeTopModal(); render(); e.preventDefault(); }
   else if ((e.code === "Enter" || e.code === "NumpadEnter") && S && mode === "pay" && !$(".modal")) { confirmPay(); e.preventDefault(); }
   else if (e.code === "KeyE" && S && E.canAct(S) && mode === "idle" && !running && !$(".modal")) { doEndTurn(); e.preventDefault(); }
   else if (e.code === "KeyH") { toggleHelp(); e.preventDefault(); }
   else if (e.code === "KeyM") { toggleMute(); e.preventDefault(); }
+  else if (e.code === "KeyF") { toggleFullscreen(); e.preventDefault(); }
+}
+
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch {}
 }
 
 // ---------- player settings (persisted in prefs) ----------
@@ -138,45 +267,53 @@ function renderMenu() {
   const hasSave = !!loadSave();
   const wins = prefs().wins || { total: 0 };
   const camp = CAMP.load();
+  const dailyRecord = prefs().daily?.[localDateId()];
+  const dailyLabel = dailyRecord?.bestRounds
+    ? `${STR.menu.daily} · ✓ ${dailyRecord.bestRounds}R`
+    : dailyRecord ? `${STR.menu.daily} · ${dailyRecord.attempts} played` : STR.menu.daily;
   document.body.className = "on-menu";
   app().innerHTML = `
   <div class="menu" style="background-image:linear-gradient(rgba(8,10,14,.55),rgba(8,10,14,.92)),url('${artPath("thumbnail")}')">
     <h1 class="title ${prefs().crowned ? "crowned" : ""}">${STR.title}</h1>
     <p class="subtitle">${STR.subtitle}${prefs().crowned ? ` · <span class="crown-mark">&#10038; ${STR.campaign.crowned}</span>` : ""}</p>
+    <div class="menu-btns menu-actions">
+      <div class="selection-summary"><b>${HEROES[menuHero].name}</b> vs <b>${VILLAINS[menuVillain].name}</b> · ${menuDiff}</div>
+      <button class="btn primary" data-act="begin">${STR.menu.start}</button>
+      ${hasSave ? `<button class="btn" data-act="continue">${STR.menu.continue}</button>` : ""}
+      <button class="btn primary vigil-btn" data-act="campaign">${camp ? tpl(STR.campaign.menuContinue, { n: camp.act + 1 }) : STR.campaign.menuNew}</button>
+      <button class="btn" data-act="daily">${dailyLabel}</button>
+      <button class="btn" data-act="stats">${STR.menu.stats}</button>
+      <button class="btn" data-act="howto">${STR.menu.howToPlay}</button>
+      <button class="btn" data-act="settings">${STR.settings.title}</button>
+      <button class="btn" data-act="mute">${STR.menu.mute}: ${isMuted() ? "OFF" : "ON"}</button>
+    </div>
+    <div class="first-vigil">${STR.menu.firstVigil}</div>
     <div class="hero-pick">
       ${Object.values(HEROES).map((h) => `
-        <div class="pick ${menuHero === h.id ? "picked" : ""} f-${h.color}" data-act="choose-hero" data-id="${h.id}">
+        <button type="button" class="pick ${menuHero === h.id ? "picked" : ""} f-${h.color}" data-act="choose-hero" data-id="${h.id}" aria-pressed="${menuHero === h.id}" aria-label="${esc(`Choose ${h.name}, ${h.title}`)}">
           <img src="${artPath(h.art)}" alt="">
           <div class="pick-name">${h.name}</div>
           <div class="pick-title">${h.title}</div>
           <div class="pick-stats">&#9876;${h.atk} &#10023;${h.thw} &#128737;${h.def} &#9829;${h.hp}</div>
           <div class="pick-ab"><b>${h.ability.name}:</b> ${h.ability.text}</div>
-        </div>`).join("")}
+        </button>`).join("")}
     </div>
     <div class="vs-label">${STR.menu.chooseVillain}</div>
     <div class="villain-pick">
       ${Object.values(VILLAINS).map((v) => `
-        <div class="vpick ${menuVillain === v.id ? "picked" : ""}" data-act="choose-villain" data-id="${v.id}">
+        <button type="button" class="vpick ${menuVillain === v.id ? "picked" : ""}" data-act="choose-villain" data-id="${v.id}" aria-pressed="${menuVillain === v.id}" aria-label="${esc(`Choose ${v.name}, ${v.epithet}`)}">
           <img src="${artPath(v.art)}" alt="">
           <div class="vp-body">
             <div class="pick-name">${v.name}</div>
             <div class="pick-title">${v.epithet}</div>
             <div class="pick-ab">${v.hint}</div>
           </div>
-        </div>`).join("")}
+        </button>`).join("")}
     </div>
     <div class="diff-row">
       <span>${STR.menu.difficulty}:</span>
-      <button class="seg ${menuDiff === "normal" ? "on" : ""}" data-act="diff" data-id="normal">${STR.menu.normal}</button>
-      <button class="seg ${menuDiff === "nightmare" ? "on" : ""}" data-act="diff" data-id="nightmare">${STR.menu.nightmare}</button>
-    </div>
-    <div class="menu-btns">
-      <button class="btn primary vigil-btn" data-act="campaign">${camp ? tpl(STR.campaign.menuContinue, { n: camp.act + 1 }) : STR.campaign.menuNew}</button>
-      <button class="btn primary" data-act="begin">${STR.menu.start}</button>
-      ${hasSave ? `<button class="btn" data-act="continue">${STR.menu.continue}</button>` : ""}
-      <button class="btn" data-act="howto">${STR.menu.howToPlay}</button>
-      <button class="btn" data-act="settings">${STR.settings.title}</button>
-      <button class="btn" data-act="mute">${STR.menu.mute}: ${isMuted() ? "OFF" : "ON"}</button>
+      <button class="seg ${menuDiff === "normal" ? "on" : ""}" data-act="diff" data-id="normal" aria-pressed="${menuDiff === "normal"}">${STR.menu.normal}</button>
+      <button class="seg ${menuDiff === "nightmare" ? "on" : ""}" data-act="diff" data-id="nightmare" aria-pressed="${menuDiff === "nightmare"}">${STR.menu.nightmare}</button>
     </div>
     <p class="credits">${wins.total ? `${STR.menu.wins}: ${wins.total} · ` : ""}${STR.menu.version} · card art generated with OpenArt (Seedream 4.5)</p>
   </div>`;
@@ -215,6 +352,7 @@ function renderCampaignHub() {
         <div class="camp-notes">
           ${c.scars ? `<div class="camp-note bad">${tpl(STR.campaign.scars, { n: c.scars })}</div>` : ""}
           ${c.extraDoom ? `<div class="camp-note bad">${tpl(STR.campaign.doomCarried, { n: c.extraDoom })}</div>` : ""}
+          ${c.resolve ? `<div class="camp-note good">${tpl(STR.campaign.resolve, { n: c.resolve })}</div>` : ""}
           <div class="camp-note">${c.deck.length} ${STR.campaign.deckLabel} · ${c.difficulty}</div>
         </div>
       </div>
@@ -232,7 +370,8 @@ function startCampaignGame() {
   const c = CAMP.load();
   if (!c || CAMP.isComplete(c)) { renderMenu(); return; }
   S = E.newGame(c.heroId, CAMP.ACTS[c.act], c.difficulty, String(Date.now()) + Math.random().toString(36).slice(2), {
-    deck: c.deck, maxHpMod: -c.scars, startDoom: c.extraDoom, isCampaign: true,
+    deck: c.deck, maxHpMod: -c.scars, startDoom: c.extraDoom,
+    startShield: c.resolve || 0, openingHandBonus: c.resolve || 0, isCampaign: true,
   });
   startDrone(); startMusic(); setMusicStage(0); VFX.setIntensity(1);
   resetModes();
@@ -252,7 +391,7 @@ function draftModal(c) {
       <h3>${STR.campaign.draftTitle}</h3>
       <p>${STR.campaign.draftText}</p>
       <div class="mull-row">
-        ${opts.map((cid) => `<div class="mcard draft-c" data-act="draft-pick" data-id="${cid}">${playerCardHTML(cid)}</div>`).join("")}
+        ${opts.map((cid) => `<button type="button" class="mcard draft-c" data-act="draft-pick" data-id="${cid}" aria-label="Add ${esc(CARDS[cid].name)} to the campaign deck">${playerCardHTML(cid)}</button>`).join("")}
       </div>
     </div>`;
   $("#overlays").appendChild(el);
@@ -272,10 +411,10 @@ function trimModal(c) {
       <p>${STR.campaign.removeText}</p>
       <div class="mull-row trim-row">
         ${Object.entries(counts).map(([cid, n]) => `
-          <div class="mcard ${can ? "" : "noclick"}" data-act="trim-pick" data-id="${cid}">
+          <button type="button" class="mcard ${can ? "" : "noclick"}" data-act="trim-pick" data-id="${cid}" aria-label="Remove ${esc(CARDS[cid].name)} from the campaign deck" ${can ? "" : "disabled"}>
             ${playerCardHTML(cid)}
             <div class="count-badge">&times;${n}</div>
-          </div>`).join("")}
+          </button>`).join("")}
       </div>
       <div class="row"><button class="btn primary" data-act="trim-skip">${STR.campaign.skip}</button></div>
     </div>`;
@@ -306,9 +445,14 @@ function epilogue(win, c) {
   CAMP.clear();
 }
 
-function startGame() {
-  setPrefs({ lastHero: menuHero, lastVillain: menuVillain, lastDiff: menuDiff });
-  S = E.newGame(menuHero, menuVillain, menuDiff, String(Date.now()) + Math.random().toString(36).slice(2));
+function startGame(options = {}) {
+  const heroId = options.heroId || menuHero;
+  const villainId = options.villainId || menuVillain;
+  const difficulty = options.difficulty || menuDiff;
+  const seed = options.seed || String(Date.now()) + Math.random().toString(36).slice(2);
+  if (!options.dailyId) setPrefs({ lastHero: heroId, lastVillain: villainId, lastDiff: difficulty });
+  S = E.newGame(heroId, villainId, difficulty, seed);
+  if (options.dailyId) S.dailyId = options.dailyId;
   startDrone();
   startMusic();
   setMusicStage(0);
@@ -319,6 +463,50 @@ function startGame() {
   render();
   drainFx();
   showMulligan();
+}
+
+function localDateId(date = new Date()) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
+}
+
+function startDaily() {
+  const dailyId = localDateId();
+  let hash = 2166136261;
+  for (const ch of dailyId) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const heroIds = Object.keys(HEROES);
+  const villainIds = Object.keys(VILLAINS);
+  startGame({
+    heroId: heroIds[hash % heroIds.length],
+    villainId: villainIds[(hash >>> 8) % villainIds.length],
+    difficulty: "normal",
+    seed: `daily-${dailyId}`,
+    dailyId,
+  });
+}
+
+function openConfirm(title, text, confirmText, onConfirm) {
+  confirmAction = onConfirm;
+  const el = document.createElement("div");
+  el.className = "modal confirm-modal";
+  el.innerHTML = `
+    <div class="modal-box confirm-box">
+      <h3>${esc(title)}</h3>
+      <p>${esc(text)}</p>
+      <div class="row">
+        <button class="btn" data-act="confirm-cancel">${STR.confirm.cancel}</button>
+        <button class="btn danger" data-act="confirm-accept">${esc(confirmText)}</button>
+      </div>
+    </div>`;
+  $("#overlays").appendChild(el);
+}
+
+function protectSavedBattle(onConfirm) {
+  if (!loadSave()) { onConfirm(); return; }
+  openConfirm(STR.confirm.replaceTitle, STR.confirm.replaceText, STR.confirm.replace, () => {
+    localStorage.removeItem(CONFIG.saveKey);
+    onConfirm();
+  });
 }
 
 // ---------- global click routing ----------
@@ -344,13 +532,32 @@ function onClick(e) {
     "choose-hero": () => { menuHero = id; sfx.click(); renderMenu(); },
     "choose-villain": () => { menuVillain = id; sfx.click(); renderMenu(); },
     "diff": () => { menuDiff = id; sfx.click(); renderMenu(); },
-    "begin": () => { sfx.click(); startGame(); },
+    "begin": () => { sfx.click(); protectSavedBattle(() => startGame()); },
+    "daily": () => { sfx.click(); protectSavedBattle(() => startDaily()); },
+    "stats": () => showStats(),
+    "pile-filter": () => {
+      const modal = el.closest(".modal");
+      if (!modal) return;
+      modal.dataset.filter = id || "all";
+      modal.querySelectorAll('[data-act="pile-filter"]').forEach((b) => {
+        const on = b.dataset.id === modal.dataset.filter;
+        b.classList.toggle("primary", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
+      filterPileModal(modal);
+    },
     "continue": () => { const st = loadSave(); if (st) { S = st; document.body.className = "in-game"; startDrone(); startMusic(); resetModes(); render(); if (S.phase === "villain") { vpLogStart = S.log.length; runVillain(); } } },
     "howto": () => toggleHelp(true),
     "mute": () => toggleMute(),
     "menu": () => { if (COOP.on) return; if (!running) openPauseMenu(); },
     "pm-help": () => { $(".modal.pausemenu")?.remove(); toggleHelp(true); },
-    "pm-restart": () => { $(".modal.pausemenu")?.remove(); localStorage.removeItem(CONFIG.saveKey); if (S && S.isCampaign) startCampaignGame(); else startGame(); },
+    "pm-restart": () => {
+      $(".modal.pausemenu")?.remove();
+      openConfirm(STR.confirm.restartTitle, STR.confirm.restartText, STR.confirm.restart, () => {
+        localStorage.removeItem(CONFIG.saveKey);
+        if (S && S.isCampaign) startCampaignGame(); else startGame();
+      });
+    },
     "pm-mainmenu": () => { $(".modal.pausemenu")?.remove(); save(); renderMenu(); },
     "settings": () => openSettings(),
     "set-speed": () => { setPrefs({ speed: uid }); applySettings(); sfx.click(); document.querySelectorAll("[data-act='set-speed']").forEach((b) => b.classList.toggle("primary", b.dataset.uid === uid)); },
@@ -361,6 +568,15 @@ function onClick(e) {
     "help": () => toggleHelp(true),
     "log-toggle": () => { $(".game").classList.toggle("show-log"); },
     "close-modal": () => { el.closest(".modal").remove(); },
+    "confirm-cancel": () => { confirmAction = null; el.closest(".modal")?.remove(); sfx.click(); },
+    "confirm-accept": () => {
+      const action = confirmAction;
+      confirmAction = null;
+      el.closest(".modal")?.remove();
+      if (action) action();
+    },
+    "coach-close": () => { el.closest(".modal")?.remove(); },
+    "inspector-close": () => { sel = null; hoverPrev = null; renderInspector(); },
     "hand": () => onHandClick(uid),
     "play": () => beginPlay(uid),
     "pay-confirm": () => confirmPay(),
@@ -374,6 +590,7 @@ function onClick(e) {
     "ally-thwart": () => allyThwartFlow(uid),
     "ally": () => { sel = { kind: "ally", uid }; render(); },
     "minion": () => { sel = { kind: "minion", uid }; render(); },
+    "side-scheme": () => {},
     "villain-card": () => { sel = { kind: "villain" }; render(); },
     "scheme": () => { sel = { kind: "scheme" }; render(); },
     "hero": () => { sel = { kind: "hero" }; render(); },
@@ -390,21 +607,29 @@ function onClick(e) {
     "def-take": () => resolveDefense({ kind: "take" }),
     "def-hero": () => resolveDefense({ kind: "hero" }),
     "def-ally": () => resolveDefense({ kind: "ally", uid }),
-    "mull-keep": () => { $("#mull")?.remove(); act(() => (E.doMulligan(S, []), null)); hintOnce("firstHand"); },
+    "mull-keep": () => { $("#mull")?.remove(); act(() => (E.doMulligan(S, []), null)); showCoachOnce(); },
     "mull-redraw": () => {
       const picked = [...document.querySelectorAll("#mull .mcard.on")].map((x) => +x.dataset.uid);
       $("#mull")?.remove();
       act(() => (E.doMulligan(S, picked), null));
-      hintOnce("firstHand");
+      showCoachOnce();
     },
-    "mull-toggle": () => { el.classList.toggle("on"); sfx.click(); },
+    "mull-toggle": () => { el.classList.toggle("on"); el.setAttribute("aria-pressed", String(el.classList.contains("on"))); sfx.click(); },
     "again": () => { $(".modal.end")?.remove(); renderMenu(); },
-    "restart": () => { if (COOP.on) return; if (!running) { localStorage.removeItem(CONFIG.saveKey); if (S && S.isCampaign) startCampaignGame(); else startGame(); } },
+    "restart": () => {
+      if (COOP.on || running) return;
+      openConfirm(STR.confirm.restartTitle, STR.confirm.restartText, STR.confirm.restart, () => {
+        localStorage.removeItem(CONFIG.saveKey);
+        if (S && S.isCampaign) startCampaignGame(); else startGame();
+      });
+    },
     "campaign": () => { sfx.click(); if (!CAMP.load()) CAMP.start(menuHero, menuDiff); renderCampaignHub(); },
     "camp-back": () => renderMenu(),
-    "camp-begin": () => startCampaignGame(),
+    "camp-begin": () => protectSavedBattle(() => startCampaignGame()),
     "camp-deck": () => { const c = CAMP.load(); if (c) showPile(STR.campaign.title, c.deck.map((cid) => ({ kind: "p", id: cid }))); },
-    "camp-abandon": () => { CAMP.clear(); localStorage.removeItem(CONFIG.saveKey); sfx.deny(); renderMenu(); },
+    "camp-abandon": () => openConfirm(STR.confirm.abandonTitle, STR.confirm.abandonText, STR.confirm.abandon, () => {
+      CAMP.clear(); localStorage.removeItem(CONFIG.saveKey); sfx.deny(); renderMenu();
+    }),
     "camp-continue": () => {
       $(".modal.end")?.remove();
       const c = CAMP.load();
@@ -421,7 +646,9 @@ function onClick(e) {
       if (CAMP.isDoomed(c)) epilogue(false, c);
       else renderCampaignHub();
     },
-    "camp-abandon-end": () => { $(".modal.end")?.remove(); CAMP.clear(); renderMenu(); },
+    "camp-abandon-end": () => openConfirm(STR.confirm.abandonTitle, STR.confirm.abandonText, STR.confirm.abandon, () => {
+      $(".modal.end")?.remove(); CAMP.clear(); renderMenu();
+    }),
     "draft-pick": () => {
       const c = CAMP.load();
       if (c && id) { CAMP.addCard(c, id); sfx.rally(); }
@@ -752,6 +979,8 @@ function toast(msg) {
   const host = $("#overlays");
   const el = document.createElement("div");
   el.className = "toast";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
   el.textContent = msg;
   host.appendChild(el);
   setTimeout(() => el.classList.add("out"), 1600);
@@ -765,6 +994,22 @@ function hintOnce(key) {
   toast(STR.hints[key]);
 }
 
+function showCoachOnce() {
+  const p = prefs();
+  if (p.coachSeen) return;
+  setPrefs({ coachSeen: 1 });
+  const el = document.createElement("div");
+  el.className = "modal coach";
+  el.innerHTML = `
+    <div class="modal-box coach-box">
+      <h3>${STR.coach.title}</h3>
+      <p>${STR.coach.intro}</p>
+      <ol class="coach-steps">${STR.coach.steps.map((step) => `<li>${step}</li>`).join("")}</ol>
+      <button class="btn primary" data-act="coach-close">${STR.coach.go}</button>
+    </div>`;
+  $("#overlays").appendChild(el);
+}
+
 function showMulligan() {
   if (!S || S.mulliganed) return;
   const host = $("#overlays");
@@ -776,7 +1021,7 @@ function showMulligan() {
       <h3>${STR.mulligan.title}</h3>
       <p>${STR.mulligan.text}</p>
       <div class="mull-row">
-        ${S.hand.map((h) => `<div class="mcard" data-act="mull-toggle" data-uid="${h.uid}">${playerCardHTML(h.c)}</div>`).join("")}
+        ${S.hand.map((h) => `<button type="button" class="mcard" data-act="mull-toggle" data-uid="${h.uid}" aria-pressed="false" aria-label="${esc(`Redraw ${CARDS[h.c].name}`)}">${playerCardHTML(h.c)}</button>`).join("")}
       </div>
       <div class="row">
         <button class="btn primary" data-act="mull-keep">${STR.actions.keepHand}</button>
@@ -790,12 +1035,46 @@ function showEnd() {
   if (!S || !S.over) return;
   if (COOP.on) { coopLocalEnd(); return; }
   const w = S.over.win;
-  if (w && !S.winCounted) {
-    S.winCounted = true;
-    const wins = prefs().wins || { total: 0 };
-    wins.total = (wins.total || 0) + 1;
-    wins[S.heroId] = (wins[S.heroId] || 0) + 1;
-    setPrefs({ wins });
+  if (!S.statsRecorded) {
+    S.statsRecorded = true;
+    const p = prefs();
+    const wins = p.wins || { total: 0 };
+    if (w) {
+      wins.total = (wins.total || 0) + 1;
+      wins[S.heroId] = (wins[S.heroId] || 0) + 1;
+    }
+    const stats = p.stats || { games: 0, wins: 0, totalRounds: 0, byHero: {}, byVillain: {}, byDifficulty: {}, recent: [] };
+    stats.byHero ||= {};
+    stats.byVillain ||= {};
+    stats.byDifficulty ||= {};
+    stats.recent ||= [];
+    const add = (group, id) => {
+      group[id] ||= { games: 0, wins: 0 };
+      group[id].games++;
+      if (w) group[id].wins++;
+    };
+    stats.games++;
+    if (w) stats.wins++;
+    stats.totalRounds += S.stats.rounds;
+    add(stats.byHero, S.heroId);
+    add(stats.byVillain, S.villainId);
+    add(stats.byDifficulty, S.difficulty);
+    stats.recent.unshift({
+      at: new Date().toISOString(), heroId: S.heroId, villainId: S.villainId,
+      difficulty: S.difficulty, win: !!w, rounds: S.stats.rounds, dailyId: S.dailyId || null,
+    });
+    stats.recent = stats.recent.slice(0, 20);
+    const daily = p.daily || {};
+    if (S.dailyId) {
+      const d = daily[S.dailyId] || { attempts: 0, wins: 0, bestRounds: null };
+      d.attempts++;
+      if (w) {
+        d.wins++;
+        d.bestRounds = d.bestRounds === null ? S.stats.rounds : Math.min(d.bestRounds, S.stats.rounds);
+      }
+      daily[S.dailyId] = d;
+    }
+    setPrefs({ wins, stats, daily });
   }
   const reason = w ? STR.end.winReason : S.over.reason === "hp" ? STR.end.loseHp : STR.end.loseScheme;
   const el = document.createElement("div");
@@ -821,6 +1100,39 @@ function showEnd() {
     </div>`;
   $("#overlays").appendChild(el);
   save();
+}
+
+function pct(wins, games) {
+  return games ? `${Math.round(100 * wins / games)}%` : "—";
+}
+
+function showStats() {
+  const st = prefs().stats || { games: 0, wins: 0, totalRounds: 0, byHero: {}, recent: [] };
+  const el = document.createElement("div");
+  el.className = "modal stats-modal";
+  const heroRows = Object.values(HEROES).map((h) => {
+    const row = st.byHero?.[h.id] || { games: 0, wins: 0 };
+    return `<div class="stat-row"><span>${h.name}</span><b>${row.wins}/${row.games}</b><em>${pct(row.wins, row.games)}</em></div>`;
+  }).join("");
+  const recent = (st.recent || []).slice(0, 8).map((r) => `
+    <li class="${r.win ? "win" : "loss"}"><b>${r.win ? STR.stats.win : STR.stats.loss}</b> · ${HEROES[r.heroId]?.name || r.heroId} vs ${VILLAINS[r.villainId]?.name || r.villainId} · R${r.rounds}${r.dailyId ? ` · ${STR.stats.daily}` : ""}</li>`).join("");
+  el.innerHTML = `
+    <div class="modal-box stats-box">
+      <h3>${STR.stats.title}</h3>
+      <div class="stats-summary">
+        <div><b>${st.games || 0}</b><span>${STR.stats.games}</span></div>
+        <div><b>${st.wins || 0}</b><span>${STR.stats.wins}</span></div>
+        <div><b>${pct(st.wins || 0, st.games || 0)}</b><span>${STR.stats.rate}</span></div>
+        <div><b>${st.games ? (st.totalRounds / st.games).toFixed(1) : "—"}</b><span>${STR.stats.avgRounds}</span></div>
+      </div>
+      <h4>${STR.stats.byWarden}</h4>
+      <div class="stat-table">${heroRows}</div>
+      <h4>${STR.stats.recent}</h4>
+      <ul class="recent-runs">${recent || `<li>${STR.stats.none}</li>`}</ul>
+      <button class="btn primary" data-act="close-modal">${STR.help.close}</button>
+    </div>`;
+  $("#overlays").appendChild(el);
+  sfx.click();
 }
 
 function toggleHelp(open) {
@@ -864,17 +1176,40 @@ function toggleHelp(open) {
 }
 
 function showPile(title, items) {
+  const playerTypes = [...new Set(items.filter((it) => it.kind === "p").map((it) => CARDS[it.id]?.type).filter(Boolean))];
   const el = document.createElement("div");
   el.className = "modal";
+  el.dataset.filter = "all";
   el.innerHTML = `
     <div class="modal-box wide">
       <h3>${esc(title)} (${items.length})</h3>
+      ${playerTypes.length > 1 ? `<div class="pile-tools">
+        <div class="pile-filters">
+          <button class="btn small primary" data-act="pile-filter" data-id="all" aria-pressed="true">${STR.pile.all}</button>
+          ${playerTypes.map((type) => `<button class="btn small" data-act="pile-filter" data-id="${type}" aria-pressed="false">${esc(type)}</button>`).join("")}
+        </div>
+        <input type="search" data-pile-search placeholder="${esc(STR.pile.search)}" aria-label="${esc(STR.pile.search)}">
+      </div>` : ""}
       <div class="mull-row">
-        ${items.map((it) => `<div class="mcard">${it.kind === "p" ? playerCardHTML(it.id) : encCardHTML(it.id)}</div>`).join("") || "<p>—</p>"}
+        ${items.map((it) => `<div class="mcard" data-type="${it.kind === "p" ? CARDS[it.id]?.type || "" : "encounter"}" data-name="${esc((it.kind === "p" ? CARDS[it.id]?.name : ENCOUNTERS[it.id]?.name) || it.id)}">${it.kind === "p" ? playerCardHTML(it.id) : encCardHTML(it.id)}</div>`).join("") || "<p>—</p>"}
+        <p class="pile-empty" hidden>${STR.pile.empty}</p>
       </div>
       <button class="btn primary" data-act="close-modal">${STR.help.close}</button>
     </div>`;
   $("#overlays").appendChild(el);
+}
+
+function filterPileModal(modal) {
+  const type = modal.dataset.filter || "all";
+  const q = (modal.querySelector("[data-pile-search]")?.value || "").trim().toLowerCase();
+  let shown = 0;
+  modal.querySelectorAll(".mcard[data-type]").forEach((card) => {
+    const visible = (type === "all" || card.dataset.type === type) && (!q || card.dataset.name.toLowerCase().includes(q));
+    card.hidden = !visible;
+    if (visible) shown++;
+  });
+  const empty = modal.querySelector(".pile-empty");
+  if (empty) empty.hidden = shown !== 0;
 }
 
 // ---------- pause menu & settings ----------
@@ -932,6 +1267,10 @@ function openSettings() {
 }
 
 function onInput(e) {
+  if (e.target?.matches?.("[data-pile-search]")) {
+    filterPileModal(e.target.closest(".modal"));
+    return;
+  }
   const vol = e.target?.dataset?.vol;
   if (!vol) return;
   const v = (+e.target.value || 0) / 100;
@@ -943,6 +1282,7 @@ function onInput(e) {
 function closeTopModal() {
   const m = [...document.querySelectorAll(".modal")].filter((x) => !x.classList.contains("defense") && !x.classList.contains("end")).pop();
   if (!m) return;
+  if (m.classList.contains("confirm-modal")) confirmAction = null;
   // reveal/agenda modals gate an awaited promise in runVillain — Escape must
   // resolve them like their button would, or the villain phase locks forever
   if (m.classList.contains("agenda-m")) {
@@ -1027,7 +1367,7 @@ function render() {
   const minionsHTML = S.minions.map((m) => {
     const e = ENCOUNTERS[m.c];
     return `
-    <div class="card minion ${targetable(m.uid)}" data-target="${m.uid}" data-act="minion" data-prev="e:${m.c}" data-fx="minion:${m.uid}">
+    <div class="card minion ${targetable(m.uid)}" data-target="${m.uid}" data-act="minion" data-prev="e:${m.c}" data-fx="minion:${m.uid}" role="button" tabindex="0" aria-label="Inspect ${esc(e.name)}, ${m.hp} health">
       <div class="c-art"><img src="${artPath(m.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
       <div class="c-stats">${statChip("&#9876;", e.atk)}${statChip("&#9829;", m.hp, "hp")}</div>
@@ -1042,13 +1382,13 @@ function render() {
     const c = CARDS[a.c];
     const canUse = E.canAct(S) && !a.exhausted && mode === "idle" && !running;
     return `
-    <div class="card ally ${a.exhausted ? "exhausted" : ""}" data-act="ally" data-uid="${a.uid}" data-prev="p:${a.c}" data-fx="ally:${a.uid}">
+    <div class="card ally ${a.exhausted ? "exhausted" : ""}" data-act="ally" data-uid="${a.uid}" data-prev="p:${a.c}" data-fx="ally:${a.uid}" role="group" aria-label="${esc(c.name)}, ${a.hp} health${a.exhausted ? ", exhausted" : ""}">
       <div class="c-art"><img src="${artPath(a.c)}" alt=""></div>
       <div class="c-name">${c.name}</div>
       <div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#10023;", c.thw)}${statChip("&#9829;", a.hp, "hp")}</div>
       ${canUse ? `<div class="mini-btns">
-          ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyAttack)}">&#9876;</button>` : ""}
-          ${c.thw > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}">&#10023;</button>` : ""}
+          ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyAttack)}" aria-label="${esc(`${c.name}: attack`)}">&#9876;</button>` : ""}
+          ${c.thw > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}" aria-label="${esc(`${c.name}: disrupt`)}">&#10023;</button>` : ""}
         </div>` : ""}
     </div>`;
   }).join("");
@@ -1062,7 +1402,7 @@ function render() {
   const sideHTML = S.sideSchemes.map((ss) => {
     const e = ENCOUNTERS[ss.c];
     return `
-    <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-prev="e:${ss.c}" data-fx="side:${ss.uid}">
+    <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-act="side-scheme" data-prev="e:${ss.c}" data-fx="side:${ss.uid}" role="button" ${mode === "target" ? 'tabindex="0"' : 'tabindex="-1"'} aria-label="${esc(`${e.name}, ${ss.threat} doom`)}">
       <div class="c-art"><img src="${artPath(ss.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
       <div class="ss-threat">&#9670; <b>${ss.threat}</b></div>
@@ -1084,18 +1424,18 @@ function render() {
       && !(c.type === "ally" && S.allies.length >= CONFIG.allyLimit)
       && !(c.effect && c.effect.banish && S.minions.length === 0);
     return `
-    <div class="card hcard ${staged ? "staged" : ""} ${chosen ? "pay-chosen" : ""} ${selected ? "selected" : ""} ${canplay ? "canplay" : ""}"
-         style="${fan}" data-act="hand" data-uid="${h.uid}" data-prev="p:${h.c}">
+    <button type="button" class="card hcard ${staged ? "staged" : ""} ${chosen ? "pay-chosen" : ""} ${selected ? "selected" : ""} ${canplay ? "canplay" : ""}"
+         style="${fan}" data-act="hand" data-uid="${h.uid}" data-prev="p:${h.c}" aria-pressed="${!!selected}" aria-label="${esc(`${c.name}, ${c.type}, cost ${cost}`)}">
       ${playerCardHTML(h.c, { cost })}
       ${chosen ? `<div class="pay-badge">+${E.resValue(h.c)}</div>` : ""}
-    </div>`;
+    </button>`;
   }).join("");
 
   const heroBtns = E.canAct(S) && mode === "idle" && !running ? `
     <div class="hero-actions">
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}">&#9876; ${STR.actions.attack} ${E.heroAtk(S)}</button>
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}">&#10023; ${STR.actions.thwart} ${E.heroThw(S)}</button>
-      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}">&#10038; ${H.ability.name}</button>
+      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}" ${S.hero.exhausted ? "disabled" : ""}>&#9876; ${STR.actions.attack} ${E.heroAtk(S)}</button>
+      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}" ${S.hero.exhausted ? "disabled" : ""}>&#10023; ${STR.actions.thwart} ${E.heroThw(S)}</button>
+      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}" ${S.hero.abilityUsed >= E.abilityLimit(S) ? "disabled" : ""}>&#10038; ${H.ability.name}</button>
     </div>` : "";
 
   // condensed mana tracker, LEFT side by the hero: shows the hand's resource
@@ -1110,9 +1450,9 @@ function render() {
       <div class="action-dock paying">
         <div class="dock-count ${ok ? "ok" : ""}">${sum}<span>/${need}</span></div>
         <div class="dock-row">
-          <button class="dock-btn confirm ${ok ? "" : "off"}" data-act="pay-confirm" data-tip="${esc(STR.dock.confirm)}">&#10003;</button>
-          <button class="dock-btn" data-act="pay-auto" data-tip="${esc(STR.dock.auto)}">&#10227;</button>
-          <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
+          <button class="dock-btn confirm ${ok ? "" : "off"}" data-act="pay-confirm" data-tip="${esc(STR.dock.confirm)}" aria-label="${esc(STR.dock.confirm)}" ${ok ? "" : "disabled"}>&#10003;</button>
+          <button class="dock-btn" data-act="pay-auto" data-tip="${esc(STR.dock.auto)}" aria-label="${esc(STR.dock.auto)}">&#10227;</button>
+          <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}" aria-label="${esc(STR.dock.cancel)}">&#10005;</button>
         </div>
       </div>`;
   })() : "";
@@ -1120,7 +1460,7 @@ function render() {
   const targetBar = mode === "target" ? `
     <div class="action-dock target-dock">
       <div class="dock-label">${targetCtx.label}</div>
-      <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}">&#10005;</button>
+      <button class="dock-btn danger" data-act="cancel" data-tip="${esc(STR.dock.cancel)}" aria-label="${esc(STR.dock.cancel)}">&#10005;</button>
     </div>` : "";
 
   const manaChip = mode === "idle" && !running && E.canAct(S) ? `
@@ -1132,11 +1472,11 @@ function render() {
   <div class="game ${$(".game")?.classList.contains("show-log") ? "show-log" : ""} ${mode === "target" ? "targeting" : ""} ${S.villain.stage >= VILLAINS[S.villainId].stages.length - 1 ? "enrage" : ""} ${S.hero.hp <= 3 ? "lowhp" : ""}">
     <header class="topbar">
       <button class="btn small" data-act="menu">${STR.hud.menu}</button>
-      <div class="round-pill">${STR.hud.round} <b>${S.round}</b> · ${STR.hud.intent}: <b class="int-${S.intent}" data-tip="${esc(STR.tips.intent)}">${intentTxt}</b></div>
+      <div class="round-pill">${S.dailyId ? `<span class="daily-tag">${STR.menu.daily}</span> · ` : ""}${STR.hud.round} <b>${S.round}</b> · ${STR.hud.intent}: <b class="int-${S.intent}" data-tip="${esc(STR.tips.intent)}">${intentTxt}</b></div>
       <div class="top-right">
         <button class="btn small" data-act="restart">${STR.hud.restart}</button>
-        <button class="btn small" data-act="help">?</button>
-        <button class="btn small" data-act="mute">${isMuted() ? "&#128263;" : "&#128266;"}</button>
+        <button class="btn small" data-act="help" aria-label="${esc(STR.hud.help)}">?</button>
+        <button class="btn small" data-act="mute" aria-label="${esc(STR.menu.mute)}">${isMuted() ? "&#128263;" : "&#128266;"}</button>
         <button class="btn small log-btn" data-act="log-toggle">${STR.hud.log}</button>
       </div>
     </header>
@@ -1147,11 +1487,11 @@ function render() {
           <img src="${artPath("cardback")}" alt="">
           <span class="count">${S.enc.deck.length}</span>
         </div>
-        <div class="pile flat" data-act="enc-discard" data-tip="${esc(STR.tips.discard)}">
+        <div class="pile flat" data-act="enc-discard" data-tip="${esc(STR.tips.discard)}" role="button" tabindex="0" aria-label="${esc(STR.hud.encounterDeck + " " + STR.hud.discard)}">
           <span class="count">${S.enc.discard.length}</span>
         </div>
       </div>
-      <div class="card villain ${targetable("villain")}" data-target="villain" data-act="villain-card" data-prev="v" data-fx="villain">
+      <div class="card villain ${targetable("villain")}" data-target="villain" data-act="villain-card" data-prev="v" data-fx="villain" role="button" tabindex="0" aria-label="${esc(`${st.title}, ${S.villain.hp} health`)}">
         <div class="c-art"><img src="${artPath(VILLAINS[S.villainId].art)}" alt=""></div>
         <div class="stage-pips">${VILLAINS[S.villainId].stages.map((_, i) => `<i class="${i <= S.villain.stage ? "on" : ""}"></i>`).join("")}</div>
         ${S.villain.stun > 0 ? `<div class="vchip stun">&#9889;${S.villain.stun}</div>` : ""}
@@ -1163,7 +1503,7 @@ function render() {
         ${hpbarHTML("", Math.max(0, 100 * S.villain.hp / (st.hp + CONFIG.difficulty[S.difficulty].villainHpBonus)), String(S.villain.hp))}
         ${attachHTML ? `<div class="chips">${attachHTML}</div>` : ""}
       </div>
-      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme">
+      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme" role="button" tabindex="0" aria-label="${esc(`${agenda.name}, ${S.scheme.threat} of ${th} doom`)}">
         <div class="c-art"><img src="${artPath(agenda.art)}" alt=""></div>
         ${crisisLock ? `<div class="crisis-lock" data-tip="${esc(STR.tips.crisis)}">&#128274;</div>` : ""}
         <div class="c-name">${agenda.name}</div>
@@ -1183,7 +1523,7 @@ function render() {
     </section>
     <section class="hero-zone">
       <div class="hero-wrap">
-        <div class="card hero f-${H.color} ${S.hero.exhausted ? "exhausted" : ""}" data-act="hero" data-prev="h" data-fx="hero">
+        <div class="card hero f-${H.color} ${S.hero.exhausted ? "exhausted" : ""}" data-act="hero" data-prev="h" data-fx="hero" role="button" tabindex="0" aria-label="${esc(`${H.name}, ${S.hero.hp} of ${S.hero.maxHp} health`)}">
           <div class="c-art"><img src="${artPath(H.art)}" alt=""></div>
           <div class="c-name">${H.name}</div>
           <div class="c-stats">${statChip("&#9876;", E.heroAtk(S))}${statChip("&#10023;", E.heroThw(S))}${statChip("&#128737;", E.heroDef(S))}</div>
@@ -1198,8 +1538,8 @@ function render() {
           <img src="${artPath("cardback")}" alt="">
           <span class="count">${S.deck.length}</span>
         </div>
-        <div class="pile flat" data-act="discard" data-tip="${esc(STR.tips.discard)}"><span class="count">${S.discard.length}</span></div>
-        <button class="btn endturn ${!E.canAct(S) || running || mode !== "idle" ? "off" : ""}" data-act="end-turn" data-tip="${esc(STR.tips.endTurn)}">${running ? STR.phases.villainPhase : STR.hud.endTurn}</button>
+        <div class="pile flat" data-act="discard" data-tip="${esc(STR.tips.discard)}" role="button" tabindex="0" aria-label="${esc(STR.hud.discard)}"><span class="count">${S.discard.length}</span></div>
+        <button class="btn endturn ${!E.canAct(S) || running || mode !== "idle" ? "off" : ""}" data-act="end-turn" data-tip="${esc(STR.tips.endTurn)}" ${!E.canAct(S) || running || mode !== "idle" ? "disabled" : ""}>${running ? STR.phases.villainPhase : STR.hud.endTurn}</button>
       </div>
     </section>
     <aside class="logpanel">
@@ -1301,7 +1641,7 @@ function renderInspector() {
       <div class="c-stats">${statChip("&#9876;", E.heroAtk(S))}${statChip("&#10023;", E.heroThw(S))}${statChip("&#128737;", E.heroDef(S))}${statChip("&#9829;", S.hero.hp, "hp")}</div></div>`;
     flavor = H.flavor;
   }
-  box.innerHTML = `${inner}${flavor ? `<p class="flavor">${flavor}</p>` : ""}${actions ? `<div class="insp-actions">${actions}</div>` : ""}`;
+  box.innerHTML = `<button class="inspector-close" data-act="inspector-close" aria-label="${esc(STR.actions.cancel)}">&#10005;</button>${inner}${flavor ? `<p class="flavor">${flavor}</p>` : ""}${actions ? `<div class="insp-actions">${actions}</div>` : ""}`;
   box.classList.add("open");
 }
 

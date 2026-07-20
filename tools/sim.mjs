@@ -15,9 +15,16 @@
 
 import * as E from "../js/engine.js";
 import { HEROES, CARDS, ENCOUNTERS, VILLAINS } from "../js/cards.js";
+import * as CAMP from "../js/campaign.js";
+import { next, seedFrom } from "../js/rng.js";
 
 const GAMES = Number(process.env.GAMES || 150);
 const ROUND_CAP = 200;
+const DIFFICULTIES = (process.env.DIFFICULTIES || process.env.DIFFICULTY || "normal")
+  .split(",")
+  .map((x) => x.trim())
+  .filter((x) => ["normal", "nightmare"].includes(x));
+const CAMPAIGN_MODE = process.env.CAMPAIGN === "1";
 // SMART=policy refinements on top of the mandated baseline (BASE=1 to disable):
 //  - hold one ready ally as a blocker on ATTACK-intent rounds
 //  - hero basic action: also disrupt when THW > ATK and there is threat to remove
@@ -97,7 +104,7 @@ function evalCard(S, h) {
   // events
   const ef = card.effect || {};
   if (ef.readyAllies) return null; // handled in the post-ally rally pass
-  if (ef.readyHero && !ef.shield) return null; // useless before hero acts
+  if (ef.readyHero) return null; // handled only after the hero actually exhausts
   if (ef.selfDmg && S.hero.hp <= ef.selfDmg + 1) return null; // don't suicide
 
   let score = 0;
@@ -200,6 +207,29 @@ function tryRally(S) {
   return E.playCard(S, h.uid, pay, null) === null;
 }
 
+function useHeroBasic(S) {
+  if (S.hero.exhausted || heroShouldHold(S)) return false;
+  const th = E.schemeThreshold(S);
+  const nearCap = S.scheme.threat >= th - HERO_MARGIN;
+  const controlWindow = SMART && E.heroThw(S) > E.heroAtk(S) && S.scheme.threat >= Math.max(E.heroThw(S), th - 5);
+  if (nearCap || controlWindow || (SMART && E.hasCrisis(S))) E.basicThwart(S, thwartTarget(S));
+  else E.basicAttack(S, pickEnemyTarget(S));
+  return true;
+}
+
+function tryReadyHero(S) {
+  if (!S.hero.exhausted) return false;
+  const options = S.hand
+    .filter((h) => CARDS[h.c].effect?.readyHero)
+    .sort((a, b) => (CARDS[a.c].cost || 0) - (CARDS[b.c].cost || 0));
+  for (const h of options) {
+    const pay = E.autoPay(S, h.uid);
+    if (pay == null) continue;
+    if (E.playCard(S, h.uid, pay, null) === null) return true;
+  }
+  return false;
+}
+
 function playerTurn(S) {
   greedyPlays(S);
   if (S.over) return;
@@ -217,15 +247,12 @@ function playerTurn(S) {
   if (tryRally(S) && !S.over) allyActions(S); // second wave after rally
   if (S.over) return;
 
-  // basic action: disrupt when doom is close to the threshold, else attack
-  // (skipped entirely when the hero is staying ready to defend)
-  if (!S.hero.exhausted && !heroShouldHold(S)) {
-    const nearCap = S.scheme.threat >= E.schemeThreshold(S) - HERO_MARGIN;
-    const thwBetter =
-      SMART && E.heroThw(S) > E.heroAtk(S) && S.scheme.threat >= E.heroThw(S);
-    if (nearCap || thwBetter || (SMART && E.hasCrisis(S))) E.basicThwart(S, thwartTarget(S));
-    else E.basicAttack(S, pickEnemyTarget(S));
-  }
+  // basic action: disrupt when doom is close to the threshold, else attack.
+  // Ready effects are deliberately played after this action so they create a
+  // real second activation instead of being wasted by the policy.
+  useHeroBasic(S);
+  let readyGuard = 0;
+  while (!S.over && readyGuard++ < 3 && tryReadyHero(S)) useHeroBasic(S);
   if (S.over) return;
   E.endTurn(S);
 }
@@ -266,8 +293,9 @@ function villainPhase(S) {
 }
 
 // ---------- one full game ----------
-export function playGame(heroId, villainId, seed, trace = false) {
-  const S = E.newGame(heroId, villainId, "normal", seed);
+export function playGame(heroId, villainId, seed, trace = false, opts = {}) {
+  const difficulty = opts.difficulty || "normal";
+  const S = E.newGame(heroId, villainId, difficulty, seed, opts);
   // mulligan: shuffle back opening cards the policy has no use for
   // (evaluates to null at game start), keeping resources as payment fuel
   if (SMART) {
@@ -297,16 +325,99 @@ export function playGame(heroId, villainId, seed, trace = false) {
     console.log(
       `  == over: ${JSON.stringify(S.over)} round ${S.round} villain stage ${S.villain.stage} hp ${S.villain.hp} hero hp ${S.hero.hp} threat ${S.scheme.threat}/${E.schemeThreshold(S)} schemeStage ${S.scheme.stage}`
     );
-  if (!S.over) return { stalled: true, rounds: S.round };
-  return { win: S.over.win, reason: S.over.reason, rounds: S.round };
+  if (!S.over) return { stalled: true, rounds: S.round, state: S };
+  return { win: S.over.win, reason: S.over.reason, rounds: S.round, state: S };
+}
+
+function draftScore(heroId, id) {
+  const card = CARDS[id];
+  if (card.type === "resource") return 120 + (card.res || 1) * 10;
+  if (id === "cinder_of_the_first_flame") return 112;
+  if (id === "wardens_oath") return heroId === "odran" ? 86 : 108;
+  let score = 50 - (card.cost || 0) * 3;
+  const ef = card.effect || {};
+  if (ef.dmg) score += ef.dmg * 12;
+  if (ef.dmgAll) score += ef.dmgAll * 15;
+  if (ef.thwart) score += ef.thwart * 10;
+  if (ef.heal) score += ef.heal * 5;
+  if (ef.draw) score += ef.draw * 8;
+  if (ef.stun || ef.seal) score += 18;
+  if (ef.burn) score += ef.burn * 8;
+  if (card.type === "ally") score += (card.atk || 0) * 8 + (card.thw || 0) * 7 + (card.hp || 0) * 3;
+  if (card.type === "upgrade") score += 20;
+  return score;
+}
+
+function trimCandidate(c) {
+  if (!CAMP.canRemove(c)) return null;
+  const counts = {};
+  for (const id of c.deck) counts[id] = (counts[id] || 0) + 1;
+  return c.deck
+    .filter((id) => CARDS[id].type !== "resource")
+    .map((id) => ({ id, score: draftScore(c.heroId, id) - Math.max(0, counts[id] - 2) * 8 }))
+    .sort((a, b) => a.score - b.score)[0]?.id || null;
+}
+
+export function playCampaign(heroId, difficulty, seed) {
+  const c = CAMP.start(heroId, difficulty);
+  let rng = seedFrom(seed);
+  const random = () => {
+    const [value, state] = next(rng);
+    rng = state;
+    return value;
+  };
+  const attempts = [];
+  let guard = 0;
+  while (!CAMP.isComplete(c) && !CAMP.isDoomed(c) && guard++ < 24) {
+    const villainId = CAMP.ACTS[c.act];
+    const result = playGame(heroId, villainId, `${seed}-act${c.act}-try${guard}`, false, {
+      difficulty,
+      isCampaign: true,
+      deck: c.deck,
+      maxHpMod: -c.scars,
+      startDoom: c.extraDoom,
+      startShield: c.resolve || 0,
+      openingHandBonus: c.resolve || 0,
+    });
+    attempts.push({
+      act: c.act,
+      villain: villainId,
+      win: !!result.win,
+      reason: result.reason || (result.stalled ? "stalled" : null),
+      rounds: result.rounds,
+      hp: result.state.hero.hp,
+    });
+    if (result.stalled) break;
+    if (result.win) {
+      CAMP.applyWin(c, result.state);
+      if (!CAMP.isComplete(c)) {
+        const options = CAMP.draftOptions(c, random);
+        const pick = options.sort((a, b) => draftScore(heroId, b) - draftScore(heroId, a))[0];
+        if (pick) CAMP.addCard(c, pick);
+        const trim = trimCandidate(c);
+        if (trim) CAMP.removeCard(c, trim);
+      }
+    } else {
+      CAMP.applyLoss(c, result.state);
+    }
+  }
+  return {
+    win: CAMP.isComplete(c),
+    doomed: CAMP.isDoomed(c),
+    stalled: guard >= 24,
+    act: c.act,
+    scars: c.scars,
+    deckSize: c.deck.length,
+    attempts,
+  };
 }
 
 // ---------- matrix run ----------
 const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain && process.env.TRACE) {
-  const [h = "kaelen", v = "morvane", s = "sim-0"] = process.env.TRACE.split(",");
+  const [h = "kaelen", v = "morvane", s = "sim-0", d = "normal"] = process.env.TRACE.split(",");
   console.log(`TRACE ${h} vs ${v} seed ${s}`);
-  playGame(h, v, s, true);
+  playGame(h, v, s, true, { difficulty: d });
   process.exit(0);
 }
 if (isMain) {
@@ -315,41 +426,81 @@ if (isMain) {
   const results = [];
   const crashes = [];
 
-  for (const hero of heroes) {
-    for (const villain of villains) {
+  if (CAMPAIGN_MODE) {
+    for (const difficulty of DIFFICULTIES) {
+      for (const hero of heroes) {
+        let wins = 0, doomed = 0, stalls = 0, actSum = 0, attemptSum = 0, scarSum = 0;
+        for (let i = 0; i < GAMES; i++) {
+          try {
+            const r = playCampaign(hero, difficulty, `campaign-${i}`);
+            if (r.win) wins++;
+            if (r.doomed) doomed++;
+            if (r.stalled) stalls++;
+            actSum += r.act;
+            attemptSum += r.attempts.length;
+            scarSum += r.scars;
+          } catch (e) {
+            crashes.push({ hero, difficulty, seed: `campaign-${i}`, error: String(e) });
+          }
+        }
+        const played = GAMES - crashes.filter((x) => x.hero === hero && x.difficulty === difficulty).length;
+        results.push({
+          mode: "campaign", hero, difficulty, games: played, wins,
+          winRate: played ? +(wins / played).toFixed(3) : 0,
+          doomed, stalls,
+          avgActsCleared: played ? +(actSum / played).toFixed(2) : 0,
+          avgAttempts: played ? +(attemptSum / played).toFixed(2) : 0,
+          avgScars: played ? +(scarSum / played).toFixed(2) : 0,
+        });
+      }
+    }
+  } else for (const difficulty of DIFFICULTIES) {
+    for (const hero of heroes) {
+      for (const villain of villains) {
       let wins = 0,
         loseHp = 0,
         loseScheme = 0,
         stalls = 0,
         roundSum = 0,
+        hpSum = 0,
+        stageSum = 0,
         played = 0;
       for (let i = 0; i < GAMES; i++) {
         const seed = "sim-" + i;
         try {
-          const r = playGame(hero, villain, seed);
+          const r = playGame(hero, villain, seed, false, { difficulty });
           played++;
           roundSum += r.rounds;
+          hpSum += r.state.hero.hp;
+          stageSum += r.state.villain.stage;
           if (r.stalled) stalls++;
           else if (r.win) wins++;
           else if (r.reason === "hp") loseHp++;
           else loseScheme++;
         } catch (e) {
-          crashes.push({ hero, villain, seed, error: String(e) });
+          crashes.push({ hero, villain, difficulty, seed, error: String(e) });
         }
       }
       results.push({
-        hero,
-        villain,
+        mode: "matchup", hero, villain, difficulty,
         games: played,
         wins,
         winRate: played ? +(wins / played).toFixed(3) : 0,
         avgRounds: played ? +(roundSum / played).toFixed(1) : 0,
+        avgEndHeroHp: played ? +(hpSum / played).toFixed(1) : 0,
+        avgVillainStageReached: played ? +(stageSum / played).toFixed(2) : 0,
         loseByHp: loseHp,
         loseByScheme: loseScheme,
         stalls,
       });
+      }
     }
   }
 
-  console.log(JSON.stringify({ results, crashes: crashes.slice(0, 5), crashCount: crashes.length }, null, 2));
+  console.log(JSON.stringify({
+    meta: { gamesPerRow: GAMES, smartPolicy: SMART, difficulties: DIFFICULTIES, campaign: CAMPAIGN_MODE },
+    results,
+    crashes: crashes.slice(0, 5),
+    crashCount: crashes.length,
+  }, null, 2));
 }

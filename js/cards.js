@@ -9,7 +9,7 @@ export const HEROES = {
     name: "Kaelen Dray",
     title: "The Ashblade",
     color: "ember",
-    hp: 12, atk: 2, thw: 1, def: 2, handSize: 5,
+    hp: 13, atk: 2, thw: 1, def: 2, handSize: 5,
     art: "hero_kaelen",
     ability: {
       name: "Emberheart",
@@ -39,7 +39,7 @@ export const HEROES = {
     name: "Sera Voss",
     title: "Riftweaver",
     color: "rift",
-    hp: 11, atk: 1, thw: 2, def: 2, handSize: 6,
+    hp: 13, atk: 1, thw: 2, def: 2, handSize: 6,
     art: "hero_sera",
     ability: {
       name: "Riftsight",
@@ -68,7 +68,7 @@ export const HEROES = {
     name: "Odran Vael",
     title: "The Gravewarden",
     color: "aegis",
-    hp: 14, atk: 1, thw: 2, def: 3, handSize: 5,
+    hp: 13, atk: 1, thw: 3, def: 2, handSize: 5,
     art: "hero_odran",
     ability: {
       name: "Aegis",
@@ -101,9 +101,9 @@ export const CARDS = {
   // ---- Kaelen (ember) ----
   ember_slash: {
     name: "Ember Slash", type: "event", cost: 1, faction: "kaelen",
-    text: "Deal 3 damage to an enemy.",
+    text: "Deal 4 damage to an enemy.",
     flavor: "The blade remembers the fire.",
-    effect: { dmg: 3, target: "enemy" },
+    effect: { dmg: 4, target: "enemy" },
   },
   cleaving_arc: {
     name: "Cleaving Arc", type: "event", cost: 3, faction: "kaelen",
@@ -119,15 +119,15 @@ export const CARDS = {
   },
   second_wind: {
     name: "Second Wind", type: "event", cost: 1, faction: "kaelen",
-    text: "Heal 3 damage from your hero.",
+    text: "Heal 4 damage from your hero.",
     flavor: "Stand. The city still needs you.",
-    effect: { heal: 3 },
+    effect: { heal: 4 },
   },
   bulwark: {
     name: "Bulwark", type: "event", cost: 1, faction: "kaelen",
-    text: "Gain 3 shield until your next turn.",
+    text: "Gain 4 shield until your next turn.",
     flavor: "The wall holds because he is the wall.",
-    effect: { shield: 3 },
+    effect: { shield: 4 },
   },
   reckless_charge: {
     name: "Reckless Charge", type: "event", cost: 0, faction: "kaelen",
@@ -162,16 +162,16 @@ export const CARDS = {
   },
   wardplate: {
     name: "Wardplate", type: "upgrade", cost: 1, faction: "kaelen",
-    text: "Your hero has +1 DEF.",
+    text: "Your hero has +2 DEF.",
     flavor: "Dented, never broken.",
-    mod: { def: 1 },
+    mod: { def: 2 },
   },
   // ---- Sera (rift) ----
   rift_bolt: {
     name: "Rift Bolt", type: "event", cost: 1, faction: "sera",
-    text: "Deal 3 damage to an enemy.",
+    text: "Deal 4 damage to an enemy.",
     flavor: "The Void bites both ways.",
-    effect: { dmg: 3, target: "enemy" },
+    effect: { dmg: 4, target: "enemy" },
   },
   unravel: {
     name: "Unravel", type: "event", cost: 1, faction: "sera",
@@ -181,9 +181,9 @@ export const CARDS = {
   },
   veil_of_mist: {
     name: "Veil of Mist", type: "event", cost: 1, faction: "sera",
-    text: "Gain 3 shield until your next turn.",
+    text: "Gain 4 shield until your next turn.",
     flavor: "What the eye loses, the blade cannot find.",
-    effect: { shield: 3 },
+    effect: { shield: 4 },
   },
   foresight: {
     name: "Foresight", type: "event", cost: 1, faction: "sera",
@@ -198,7 +198,7 @@ export const CARDS = {
     effect: { banish: true, target: "minion" },
   },
   temporal_slip: {
-    name: "Temporal Slip", type: "event", cost: 2, faction: "sera",
+    name: "Temporal Slip", type: "event", cost: 1, faction: "sera",
     text: "The villain does not activate during the next villain phase.",
     flavor: "A second, stolen twice.",
     effect: { seal: true },
@@ -212,7 +212,7 @@ export const CARDS = {
   },
   sentinel_golem: {
     name: "Sentinel Golem", type: "ally", cost: 3, faction: "sera",
-    atk: 1, thw: 1, hp: 5,
+    atk: 2, thw: 1, hp: 5,
     text: "Ally. A patient wall of stone and crystal.",
     flavor: "It does not tire. It does not yield.",
   },
@@ -237,9 +237,9 @@ export const CARDS = {
   },
   verdict: {
     name: "Verdict", type: "event", cost: 2, faction: "odran",
-    text: "Deal 2 damage to an enemy. Gain 2 shield.",
+    text: "Deal 3 damage to an enemy. Gain 2 shield.",
     flavor: "Judgment, delivered in gold.",
-    effect: { dmg: 2, target: "enemy", shield: 2 },
+    effect: { dmg: 3, target: "enemy", shield: 2 },
   },
   rally_the_watch: {
     name: "Rally the Watch", type: "event", cost: 2, faction: "odran",
@@ -256,13 +256,13 @@ export const CARDS = {
   lantern_bearer: {
     name: "Lantern Bearer", type: "ally", cost: 1, faction: "odran",
     atk: 1, thw: 1, hp: 2,
-    text: "Ally. Enters play: heal 1 damage from your hero.",
+    text: "Ally. Enters play: heal 2 damage from your hero.",
     flavor: "The dark counts her candle first.",
-    enter: { heal: 1 },
+    enter: { heal: 2 },
   },
   watch_captain: {
     name: "Watch Captain", type: "ally", cost: 2, faction: "odran",
-    atk: 1, thw: 1, hp: 3,
+    atk: 2, thw: 1, hp: 3,
     text: "Ally. Enters play: gain 2 shield.",
     flavor: "Thirty years on the wall. Zero breaches.",
     enter: { shield: 2 },
@@ -287,9 +287,9 @@ export const CARDS = {
   },
   last_bastion: {
     name: "Last Bastion", type: "event", cost: 3, faction: "odran",
-    text: "Heal 4 damage. Remove 2 doom from the scheme.",
+    text: "Heal 4 damage. Remove 3 doom from the scheme.",
     flavor: "When all else falls, he is the wall.",
-    effect: { heal: 4, thwart: 2 },
+    effect: { heal: 4, thwart: 3 },
   },
   // ---- v1.3 status & scheme tech ----
   stagger: {
@@ -306,9 +306,9 @@ export const CARDS = {
   },
   judgment_bell: {
     name: "Judgment Bell", type: "event", cost: 2, faction: "odran",
-    text: "Remove 2 doom from a scheme. Draw 1 card.",
+    text: "Remove 3 doom from a scheme. Draw 1 card.",
     flavor: "When it tolls, even the Spire listens.",
-    effect: { thwart: 2, draw: 1 },
+    effect: { thwart: 3, draw: 1 },
   },
   // ---- campaign relics (neutral, earned in The Long Vigil) ----
   cinder_of_the_first_flame: {
@@ -332,9 +332,9 @@ export const CARDS = {
   // ---- shared ----
   wardens_beacon: {
     name: "Warden's Beacon", type: "event", cost: 1, faction: "neutral",
-    text: "Remove 2 doom from a scheme.",
+    text: "Remove 3 doom from a scheme.",
     flavor: "One light, held against the tide.",
-    effect: { thwart: 2 },
+    effect: { thwart: 3 },
   },
   wardens_resolve: {
     name: "Warden's Resolve", type: "resource", cost: null, faction: "neutral",
@@ -516,12 +516,12 @@ export const VILLAINS = {
       name: "The Hollowing",
       art: "scheme_hollowing",
       stages: [
-        { name: "Whispers in the Walls", th: { normal: 9, nightmare: 7 },
+        { name: "Whispers in the Walls", th: { normal: 9, nightmare: 8 },
           text: "The city forgets itself, one name at a time." },
         { name: "The Veil Descends", th: { normal: 9, nightmare: 8 },
           text: "Advance: Morvane heals 3. While here: his ATTACK +1.",
           onAdvance: { healVillain: 3 }, ongoing: { atk: 1 } },
-        { name: "A Crown of Hollow Names", th: { normal: 10, nightmare: 8 },
+        { name: "A Crown of Hollow Names", th: { normal: 10, nightmare: 9 },
           text: "Advance: a Void Cultist spawns and a card is torn from your hand. While here: his SCHEME +1. If this fills — Ashenmoor is lost.",
           onAdvance: { spawn: "void_cultist", discardRandom: 1 }, ongoing: { sch: 1 } },
       ],
@@ -561,12 +561,12 @@ export const VILLAINS = {
       name: "The Toll of Bells",
       art: "scheme_vexahl",
       stages: [
-        { name: "The First Toll", th: { normal: 11, nightmare: 9 },
+        { name: "The First Toll", th: { normal: 11, nightmare: 10 },
           text: "Somewhere below the water, a bell answers." },
-        { name: "The Chorus Swells", th: { normal: 11, nightmare: 9 },
+        { name: "The Chorus Swells", th: { normal: 11, nightmare: 10 },
           text: "Advance: a Void Cultist spawns to sing. While here: minions' ATTACK +1.",
           onAdvance: { spawn: "void_cultist" }, ongoing: { minionAtk: 1 } },
-        { name: "The Final Proclamation", th: { normal: 12, nightmare: 10 },
+        { name: "The Final Proclamation", th: { normal: 12, nightmare: 11 },
           text: "Advance: the verdict lands — 1 doom at once. While here: Doom spreads +1 each round. If this fills — Ashenmoor is lost.",
           onAdvance: { doom: 1 }, ongoing: { doomPerRound: 1 } },
       ],
@@ -606,20 +606,20 @@ export const VILLAINS = {
       name: "The Spire Consumes",
       art: "scheme_nul",
       stages: [
-        { name: "Roots Beneath the City", th: { normal: 10, nightmare: 8 },
+        { name: "Roots Beneath the City", th: { normal: 10, nightmare: 9 },
           text: "Every cellar in Ashenmoor grows the same black stone." },
-        { name: "The Feeding", th: { normal: 10, nightmare: 8 },
-          text: "Advance: the Spire drinks — you take 2 damage and Nul heals 3. While here: minions' ATTACK +1.",
-          onAdvance: { directDmg: 2, healVillain: 3 }, ongoing: { minionAtk: 1 } },
-        { name: "Ascension", th: { normal: 11, nightmare: 9 },
+        { name: "The Feeding", th: { normal: 10, nightmare: 9 },
+          text: "Advance: the Spire drinks — you take 1 damage and Nul heals 2. While here: minions' ATTACK +1.",
+          onAdvance: { directDmg: 1, healVillain: 2 }, ongoing: { minionAtk: 1 } },
+        { name: "Ascension", th: { normal: 11, nightmare: 10 },
           text: "Advance: a Rift Stalker tears through. While here: his SCHEME +1. If this fills — Ashenmoor is lost.",
           onAdvance: { spawn: "rift_stalker" }, ongoing: { sch: 1 } },
       ],
     },
     stages: [
-      { title: "The Heartbeat",       hp: 14, atk: 3, sch: 2 },
-      { title: "The Waking Spire",    hp: 16, atk: 3, sch: 3, onReveal: { spawn: "rift_stalker" } },
-      { title: "Nul, the Spire-Heart", hp: 18, atk: 4, sch: 3, onReveal: { threat: 3 } },
+      { title: "The Heartbeat",       hp: 11, atk: 2, sch: 2 },
+      { title: "The Waking Spire",    hp: 13, atk: 3, sch: 3, onReveal: { spawn: "rift_stalker" } },
+      { title: "Nul, the Spire-Heart", hp: 15, atk: 4, sch: 3, onReveal: { threat: 2 } },
     ],
     encDeck: [
       "void_cultist", "void_cultist",

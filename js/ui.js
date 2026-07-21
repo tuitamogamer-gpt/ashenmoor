@@ -51,6 +51,7 @@ function gameSnapshot() {
     };
   }
   const villain = E.stage(S);
+  const forecast = E.doomForecast(S);
   return {
     screen: S.over ? (S.over.win ? "victory" : "defeat") : S.phase,
     mode,
@@ -80,6 +81,7 @@ function gameSnapshot() {
       threat: S.scheme.threat,
       threshold: E.schemeThreshold(S),
       crisis: E.hasCrisis(S),
+      forecast,
     },
     hand: S.hand.map((h) => ({
       uid: h.uid,
@@ -1340,6 +1342,33 @@ function encCardHTML(eid, opts = {}) {
     </div>`;
 }
 
+function doomForecastParts(forecast) {
+  if (!forecast.active) return [];
+  const parts = [tpl(STR.doomForecast.spread, { n: forecast.spread })];
+  if (forecast.scheme) parts.push(tpl(STR.doomForecast.scheme, { n: forecast.scheme }));
+  if (forecast.effects) parts.push(tpl(STR.doomForecast.effects, { n: forecast.effects }));
+  return parts;
+}
+
+function doomForecastLabel(forecast) {
+  if (!forecast.active) return STR.doomForecast.resolving;
+  if (forecast.lethal) return tpl(STR.doomForecast.defeat, { n: forecast.total });
+  if (forecast.advances) return tpl(STR.doomForecast.advance, { n: forecast.total });
+  return tpl(STR.doomForecast.next, { n: forecast.total });
+}
+
+function doomForecastWarning(forecast) {
+  if (!forecast.active) return STR.doomForecast.resolvingDetail;
+  if (forecast.lethal) return STR.doomForecast.lethal;
+  if (forecast.advances) return STR.doomForecast.advances;
+  return STR.doomForecast.extra;
+}
+
+function doomForecastTip(forecast) {
+  if (!forecast.active) return STR.doomForecast.resolvingDetail;
+  return `${tpl(STR.doomForecast.scheduled, { n: forecast.total })} ${doomForecastParts(forecast).join(" · ")}. ${doomForecastWarning(forecast)}`;
+}
+
 // small chips summarizing the agenda stage's ongoing twist
 function agendaOngoingChips(aStage) {
   const o = aStage.ongoing || {};
@@ -1361,6 +1390,19 @@ function render() {
   const aStage = E.agendaStage(S);
   const crisisLock = E.hasCrisis(S);
   const agendaChips = agendaOngoingChips(aStage);
+  const doomForecast = E.doomForecast(S);
+  const doomParts = doomForecastParts(doomForecast);
+  const doomLabel = doomForecastLabel(doomForecast);
+  const doomTip = doomForecastTip(doomForecast);
+  const forecastEnd = doomForecast.active ? Math.min(th, S.scheme.threat + doomForecast.total) : S.scheme.threat;
+  const forecastTone = !doomForecast.active ? "resolving" : doomForecast.lethal ? "lethal" : doomForecast.advances ? "advance" : "";
+  const doomAria = doomForecast.active
+    ? `${doomForecast.total} known Doom next villain phase; ${doomForecastWarning(doomForecast)}`
+    : STR.doomForecast.resolvingDetail;
+  const doomPips = Array.from({ length: th }, (_, i) => {
+    const cls = i < S.scheme.threat ? "on" : i < forecastEnd ? `forecast ${forecastTone}`.trim() : "";
+    return `<i class="${cls}"></i>`;
+  }).join("");
   const intentTxt = S.villainSealed ? STR.hud.intentSealed
     : S.intent === "attack" && S.villain.stun > 0 ? STR.hud.intentStunned
     : S.intent === "attack" ? `${STR.hud.intentAttack} ${E.villainAtkVal(S)}+?`
@@ -1510,14 +1552,18 @@ function render() {
         ${hpbarHTML("", Math.max(0, 100 * S.villain.hp / (st.hp + CONFIG.difficulty[S.difficulty].villainHpBonus)), String(S.villain.hp))}
         ${attachHTML ? `<div class="chips">${attachHTML}</div>` : ""}
       </div>
-      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme" role="button" tabindex="0" aria-label="${esc(`${agenda.name}, ${S.scheme.threat} of ${th} doom`)}">
+      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme" role="button" tabindex="0" aria-label="${esc(`${agenda.name}, ${S.scheme.threat} of ${th} doom; ${doomAria}`)}">
         <div class="c-art"><img src="${artPath(agenda.art)}" alt=""></div>
         ${crisisLock ? `<div class="crisis-lock" data-tip="${esc(STR.tips.crisis)}">&#128274;</div>` : ""}
         <div class="c-name">${agenda.name}</div>
-        <div class="threat-track" data-tip="${esc(STR.tips.doom)}">
-          <b class="tnum">${S.scheme.threat}<span>/${th}</span></b>
-          <div class="pips">${Array.from({ length: th }, (_, i) => `<i class="${i < S.scheme.threat ? "on" : ""}"></i>`).join("")}</div>
+        <div class="threat-track" data-tip="${esc(doomTip)}">
+          <div class="threat-head">
+            <b class="tnum">${S.scheme.threat}<span>/${th}</span></b>
+            <b class="doom-next ${forecastTone}">${doomLabel}</b>
+          </div>
+          <div class="pips">${doomPips}</div>
           <div class="s-stage">${esc(aStage.name)} · ${S.scheme.stage + 1}/${agenda.stages.length}</div>
+          <div class="doom-breakdown">${doomForecast.active ? doomParts.map((part) => `<span>${part}</span>`).join("") : `<span>${STR.doomForecast.resolving}</span>`}</div>
           ${agendaChips ? `<div class="agenda-chips" data-tip="${esc(STR.tips.agendaOngoing)}">${agendaChips}</div>` : ""}
         </div>
       </div>
@@ -1616,7 +1662,7 @@ function renderInspector() {
       : sel.kind === "villain" ? "v" : sel.kind === "scheme" ? "s" : sel.kind === "hero" ? "h" : null;
   }
   if (!key || key.endsWith("undefined")) { box.innerHTML = ""; box.classList.remove("open"); return; }
-  let inner = "", flavor = "", actions = "";
+  let inner = "", flavor = "", details = "", actions = "";
   if (key.startsWith("p:")) {
     const cid = key.slice(2);
     inner = playerCardHTML(cid, { cost: E.effCost(S, CARDS[cid]) });
@@ -1638,8 +1684,17 @@ function renderInspector() {
       <div class="c-text">ATK ${E.villainAtkVal(S)} · SCHEME ${E.villainSchVal(S)} · ${STR.hud.hp} ${S.villain.hp}</div></div>`;
     flavor = "The crown remembers a king. The king remembers nothing.";
   } else if (key === "s") {
-    inner = `<div class="cardface pcard f-void"><div class="c-art"><img src="${artPath(E.agendaDef(S).art)}"></div>
+    const forecast = E.doomForecast(S);
+    const threshold = E.schemeThreshold(S);
+    const warning = doomForecastWarning(forecast);
+    inner = `<div class="cardface pcard f-void agenda-preview"><div class="c-art"><img src="${artPath(E.agendaDef(S).art)}"></div>
       <div class="c-name">${E.agendaDef(S).name}</div><div class="c-type">AGENDA · ${esc(E.agendaStage(S).name)}</div><div class="c-text">${E.agendaStage(S).text}</div></div>`;
+    details = `<div class="doom-details ${forecast.lethal ? "lethal" : forecast.advances ? "advance" : ""}">
+      <div><b>${STR.hud.threat} ${S.scheme.threat}/${threshold}</b><strong>${doomForecastLabel(forecast)}</strong></div>
+      ${forecast.active ? `<span>${doomForecastParts(forecast).join(" · ")}</span>` : ""}
+      <em>${warning}</em>
+      ${forecast.active ? `<small>${STR.doomForecast.carry}</small>` : ""}
+    </div>`;
   } else if (key === "h") {
     const H = HEROES[S.heroId];
     inner = `<div class="cardface pcard f-${H.color}"><div class="c-art"><img src="${artPath(H.art)}"></div>
@@ -1648,7 +1703,7 @@ function renderInspector() {
       <div class="c-stats">${statChip("atk", E.heroAtk(S))}${statChip("thw", E.heroThw(S))}${statChip("def", E.heroDef(S))}${statChip("hp", S.hero.hp, "hp")}</div></div>`;
     flavor = H.flavor;
   }
-  box.innerHTML = `<button class="inspector-close" data-act="inspector-close" aria-label="${esc(STR.actions.cancel)}">&#10005;</button>${inner}${flavor ? `<p class="flavor">${flavor}</p>` : ""}${actions ? `<div class="insp-actions">${actions}</div>` : ""}`;
+  box.innerHTML = `<button class="inspector-close" data-act="inspector-close" aria-label="${esc(STR.actions.cancel)}">&#10005;</button>${inner}${details}${flavor ? `<p class="flavor">${flavor}</p>` : ""}${actions ? `<div class="insp-actions">${actions}</div>` : ""}`;
   box.classList.add("open");
 }
 

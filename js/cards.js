@@ -507,7 +507,7 @@ export const ENCOUNTERS = {
     name: "Feast of Shadows", type: "treachery", boost: 1,
     text: "The villain heals 3. If already unharmed, place 1 doom instead.",
     flavor: "He drinks what the city forgets.",
-    fx: { healVillain: 3 },
+    fx: { healVillain: 3, healElseThreat: 1 },
   },
   whispers_of_the_spire: {
     name: "Whispers of the Spire", type: "treachery", boost: 2,

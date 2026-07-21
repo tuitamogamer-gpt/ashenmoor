@@ -35,6 +35,33 @@ export const villainSchVal = (S) =>
   S.villain.attachments.reduce((n, id) => n + ((ENCOUNTERS[id].mod || {}).sch || 0), 0);
 export const doomPerRound = (S) => CONFIG.doomPerRound + (hasOngoing(S, "doomPlus1") ? 1 : 0) + agendaMod(S, "doomPerRound");
 export const schemeThreshold = (S) => agendaStage(S).th[S.difficulty];
+const agendaProgress = (S) => agendaDef(S).stages
+  .slice(0, S.scheme.stage)
+  .reduce((n, st) => n + st.th[S.difficulty], S.scheme.threat);
+
+// Simulate only the public, deterministic part of the next villain phase on a
+// disposable state clone. This keeps agenda advances, new-stage modifiers,
+// printed advance effects, and known side-scheme bursts in the forecast while
+// leaving the hidden encounter reveal unknown.
+export function doomForecast(S) {
+  const remaining = Math.max(0, schemeThreshold(S) - S.scheme.threat);
+  const inactive = { active: false, spread: 0, scheme: 0, effects: 0, total: 0, remaining, advances: false, lethal: false };
+  if (S.over || S.phase !== "player") return inactive;
+
+  const projected = JSON.parse(JSON.stringify(S));
+  const startProgress = agendaProgress(projected);
+  const { spread } = resolveDoomStep(projected);
+  let scheme = 0;
+  if (!projected.over && S.intent === "scheme" && !S.villainSealed) {
+    scheme = villainSchVal(projected); // Spread may have advanced the agenda first.
+    addThreat(projected, scheme);
+  }
+  const total = Math.max(0, agendaProgress(projected) - startProgress);
+  const effects = Math.max(0, total - spread - scheme);
+  const lethal = projected.over?.reason === "scheme";
+  const advances = lethal || projected.scheme.stage > S.scheme.stage;
+  return { active: true, spread, scheme, effects, total, remaining, advances, lethal };
+}
 const stageHp = (S, i) => villainDef(S).stages[i].hp + CONFIG.difficulty[S.difficulty].villainHpBonus;
 export const intentFor = (S, round) =>
   villainDef(S).intentPattern === "thirdBell"
@@ -325,10 +352,11 @@ function dmgAlly(S, uid, n) {
 function healVillain(S, n) {
   const max = stageHp(S, S.villain.stage);
   const h = Math.min(n, max - S.villain.hp);
-  if (h <= 0) { addThreat(S, 1); return; }
+  if (h <= 0) return 0;
   S.villain.hp += h;
   log(S, t(L.healVillain, { v: villainDef(S).name, n: h }), "bad");
   fx(S, { kind: "heal", n: h, at: "villain" });
+  return h;
 }
 
 function spawnMinion(S, encId) {
@@ -716,23 +744,27 @@ function growSideSchemes(S) {
 
 export function ackAgenda(S) { if (S.vp) S.vp.agenda = null; }
 
+function resolveDoomStep(S) {
+  if (S.villain.burn > 0) {
+    S.villain.burn--;
+    log(S, t(L.burnTick, { v: villainDef(S).name }), "good");
+    dmgVillain(S, 1);
+    if (S.over) return { spread: 0 };
+  }
+  const spread = doomPerRound(S);
+  log(S, t(L.doom, { n: spread }), "bad");
+  fx(S, { kind: "doomPulse" });
+  addThreat(S, spread);
+  if (!S.over) growSideSchemes(S);
+  return { spread };
+}
+
 export function stepVillain(S) {
   if (S.over || S.phase !== "villain" || S.vp.pending || S.vp.revealed || S.vp.agenda != null) return;
   const step = S.vp.queue.shift();
   if (!step) { S.phase = "player"; return; }
   if (step === "doom") {
-    if (S.villain.burn > 0) {
-      S.villain.burn--;
-      log(S, t(L.burnTick, { v: villainDef(S).name }), "good");
-      dmgVillain(S, 1);
-      if (S.over) return;
-    }
-    const dn = doomPerRound(S);
-    log(S, t(L.doom, { n: dn }), "bad");
-    fx(S, { kind: "doomPulse" });
-    addThreat(S, dn);
-    if (S.over) return;
-    growSideSchemes(S);
+    resolveDoomStep(S);
   } else if (step === "villain") {
     if (S.villainSealed) {
       log(S, L.villainSealed, "good");
@@ -839,7 +871,10 @@ export function resolveReveal(S) {
     }
     if (f.villainAttack && !S.over) forcedVillainAttack(S);
     if (f.discardRandom) discardRandom(S, f.discardRandom);
-    if (f.healVillain) healVillain(S, f.healVillain);
+    if (f.healVillain) {
+      const healed = healVillain(S, f.healVillain);
+      if (!healed && f.healElseThreat) addThreat(S, f.healElseThreat);
+    }
     if (f.exhaustHero) {
       if (S.hero.exhausted) addThreat(S, 1);
       else { S.hero.exhausted = true; log(S, L.exhaustHero, "bad"); }

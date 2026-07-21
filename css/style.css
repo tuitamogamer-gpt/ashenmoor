@@ -397,12 +397,25 @@ button { font-family: inherit; }
 .stage-pips i.on { background: var(--void); box-shadow: 0 0 8px var(--void); }
 
 .threat-track { padding: 2px 8px 8px; }
+.threat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 5px; }
 .tnum { font-size: 20px; color: var(--void); font-family: var(--serif); }
 .tnum span { font-size: 12px; color: var(--dim); }
-.pips { display: flex; gap: 3px; margin: 4px 0; flex-wrap: wrap; }
-.pips i { width: 12px; height: 12px; transform: rotate(45deg); background: #1a1f2b; border: 1px solid #4d3d85; }
+.doom-next {
+  font-size: 9px; letter-spacing: .05em; color: #b7a7e8;
+  background: #241d3a; border: 1px solid #4d3d85; border-radius: 8px; padding: 2px 5px;
+}
+.doom-next.advance { color: #ffd08a; border-color: #a86e32; background: #382515; }
+.doom-next.lethal { color: #ffb0a5; border-color: #b94a3c; background: #3b1718; }
+.doom-next.resolving { color: var(--dim); border-color: var(--line); background: #171b24; }
+.pips { display: flex; gap: 3px; margin: 4px 0; flex-wrap: nowrap; }
+.pips i { width: 12px; max-width: 12px; height: auto; aspect-ratio: 1; flex: 1 1 0; transform: rotate(45deg); background: #1a1f2b; border: 1px solid #4d3d85; }
 .pips i.on { background: var(--void); box-shadow: 0 0 7px var(--void); }
+.pips i.forecast { background: #58478566; border-style: dashed; box-shadow: 0 0 5px #8e72dd66; }
+.pips i.forecast.advance { background: #9a642c88; border-color: #d99a51; box-shadow: 0 0 6px #d99a5177; }
+.pips i.forecast.lethal { background: #a63f4288; border-color: #ff7568; box-shadow: 0 0 7px #ff756888; }
 .s-stage { font-size: 10px; color: var(--dim); letter-spacing: 0.12em; }
+.doom-breakdown { display: flex; flex-wrap: wrap; gap: 0 4px; margin-top: 2px; color: #aaa0c8; font-size: 8.5px; line-height: 1.2; letter-spacing: .02em; text-transform: uppercase; }
+.doom-breakdown span + span::before { content: "·"; margin-right: 4px; }
 
 /* piles */
 .piles { display: flex; flex-direction: column; gap: 8px; }
@@ -493,6 +506,8 @@ button { font-family: inherit; }
 .inspector .c-text { font-size: 12.5px; }
 .inspector .c-type { font-size: 10px; }
 .inspector .c-art { height: 46%; }
+.inspector .agenda-preview .c-art { height: 40%; }
+.inspector .agenda-preview .c-text { font-size: 11.5px; }
 .inspector .c-stats .stat { font-size: 13px; }
 .inspector .flavor {
   font-family: var(--serif); font-style: italic;
@@ -501,6 +516,20 @@ button { font-family: inherit; }
   margin: 6px 0 0; padding: 6px 10px;
   border-left: 2px solid var(--gold);
 }
+.inspector .doom-details {
+  color: #c7bddf; font-size: 10.5px; line-height: 1.35;
+  background: rgba(16, 12, 28, 0.94); border: 1px solid #4d3d85;
+  margin: 6px 0 0; padding: 7px 9px; border-radius: 8px;
+}
+.inspector .doom-details > div { display: flex; justify-content: space-between; gap: 8px; color: #eee5ff; }
+.inspector .doom-details strong { color: #b7a7e8; }
+.inspector .doom-details span, .inspector .doom-details em, .inspector .doom-details small { display: block; }
+.inspector .doom-details em { margin-top: 3px; color: var(--dim); font-style: normal; }
+.inspector .doom-details small { margin-top: 4px; color: #9b91b2; font-size: 9.5px; line-height: 1.35; }
+.inspector .doom-details.advance { border-color: #a86e32; }
+.inspector .doom-details.advance em { color: #ffd08a; }
+.inspector .doom-details.lethal { border-color: #b94a3c; }
+.inspector .doom-details.lethal em { color: #ffb0a5; }
 .inspector .insp-actions { margin-top: 8px; pointer-events: auto; display: flex; gap: 8px; }
 .inspector .note { font-size: 11px; color: var(--dim); background: rgba(10, 13, 18, 0.85); padding: 4px 8px; border-radius: 6px; }
 .inspector-close {
@@ -700,6 +729,7 @@ button { font-family: inherit; }
   }
   .inspector.open .cardface { grid-row: 1 / 4; width: 136px; }
   .inspector.open .flavor { margin: 36px 0 0; align-self: start; }
+  .inspector.open .doom-details { align-self: start; margin: 36px 0 0; }
   .inspector.open .insp-actions { align-self: end; }
   .inspector.open .insp-actions .btn { min-height: 44px; width: 100%; }
   .inspector-close { width: 40px; height: 40px; }
@@ -742,7 +772,9 @@ button { font-family: inherit; }
   .stat { font-size: 9.5px; padding: 1px 5px; }
   .stage-pips i { width: 8px; height: 8px; }
   .tnum { font-size: 16px; }
-  .pips i { width: 9px; height: 9px; }
+  .doom-next { font-size: 8px; padding: 1px 4px; }
+  .pips i { width: 9px; max-width: 9px; }
+  .doom-breakdown { font-size: 7.5px; letter-spacing: 0; }
   .hpbar { height: 11px; margin: 2px 5px 5px; }
   .topbar { padding: 5px 10px; }
 }
@@ -1397,7 +1429,7 @@ body.coop .logpanel { top: 46px; }
 .bpips .ic { width: 0.85em; height: 0.85em; }
 .burst-at .ic { width: 0.9em; height: 0.9em; }
 /* the parent card disables child pointer-events — buffs must stay hoverable */
-.villain .chips .chip, .villain .vchip, .scheme .agenda-chips { pointer-events: auto; }
+.villain .chips .chip, .villain .vchip, .scheme .threat-track, .scheme .agenda-chips { pointer-events: auto; }
 .vchip { cursor: help; }
 .agenda-chips { cursor: help; }
 .vchip[data-tip] { position: absolute; } /* data-tip's position:relative must not unseat corner chips */

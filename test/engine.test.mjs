@@ -35,6 +35,142 @@ test("Nightmare applies its documented combat and agenda pressure", () => {
   assert.equal(E.schemeThreshold(nightmare), E.schemeThreshold(normal) - 1);
 });
 
+test("doom forecast combines spread and a telegraphed scheme before hidden encounters", () => {
+  const S = E.newGame("kaelen", "morvane", "normal", "doom-forecast");
+  S.intent = "scheme";
+  S.scheme.threat = E.schemeThreshold(S) - 2;
+
+  const forecast = E.doomForecast(S);
+  assert.deepEqual(forecast, {
+    active: true,
+    spread: 1,
+    scheme: E.villainSchVal(S),
+    effects: 0,
+    total: 1 + E.villainSchVal(S),
+    remaining: 2,
+    advances: true,
+    lethal: false,
+  });
+
+  assert.equal(E.endTurn(S), null);
+  assert.equal(E.doomForecast(S).active, false, "forecast hides once the villain phase starts");
+  E.stepVillain(S); // known Doom Spread
+  E.stepVillain(S); // telegraphed SCHEME activation
+  assert.equal(S.scheme.stage, 1);
+  assert.equal(S.scheme.threat, 0);
+});
+
+test("only a printed failed-heal fallback adds doom", () => {
+  const agenda = E.newGame("kaelen", "morvane", "normal", "agenda-heal-doom");
+  agenda.scheme.threat = E.schemeThreshold(agenda) - 1;
+  E.addThreat(agenda, 1);
+  assert.equal(agenda.scheme.stage, 1);
+  assert.equal(agenda.scheme.threat, 0, "Morvane's agenda heal has no Doom fallback");
+
+  const feast = E.newGame("kaelen", "morvane", "normal", "feast-heal-doom");
+  feast.vp.revealed = "feast_of_shadows";
+  E.resolveReveal(feast);
+  assert.equal(feast.scheme.threat, 1, "Feast of Shadows keeps its printed Doom fallback");
+
+  const wounded = E.newGame("kaelen", "morvane", "normal", "feast-heals-first");
+  wounded.villain.hp--;
+  wounded.vp.revealed = "feast_of_shadows";
+  E.resolveReveal(wounded);
+  assert.equal(wounded.villain.hp, 12);
+  assert.equal(wounded.scheme.threat, 0, "a partial Feast heal does not also add Doom");
+});
+
+test("doom forecast uses the post-spread agenda for a following scheme", () => {
+  const morvane = E.newGame("kaelen", "morvane", "normal", "post-spread-scheme");
+  morvane.scheme.stage = 1;
+  morvane.scheme.threat = E.schemeThreshold(morvane) - 1;
+  morvane.intent = "scheme";
+
+  assert.deepEqual(E.doomForecast(morvane), {
+    active: true,
+    spread: 1,
+    scheme: 2,
+    effects: 1,
+    total: 4,
+    remaining: 1,
+    advances: true,
+    lethal: false,
+  });
+
+  E.endTurn(morvane);
+  E.stepVillain(morvane);
+  assert.equal(morvane.scheme.stage, 2);
+  E.ackAgenda(morvane);
+  E.stepVillain(morvane);
+  assert.equal(morvane.scheme.threat, 3);
+
+  const oszra = E.newGame("sera", "oszra", "normal", "printed-advance-doom");
+  oszra.scheme.stage = 1;
+  oszra.scheme.threat = E.schemeThreshold(oszra) - 1;
+  oszra.intent = "scheme";
+  assert.deepEqual(E.doomForecast(oszra), {
+    active: true,
+    spread: 1,
+    scheme: 3,
+    effects: 1,
+    total: 5,
+    remaining: 1,
+    advances: true,
+    lethal: false,
+  });
+});
+
+test("doom forecast includes a visible side-scheme burst before the encounter", () => {
+  const S = E.newGame("odran", "morvane", "normal", "known-side-burst");
+  S.scheme.stage = E.agendaDef(S).stages.length - 1;
+  S.scheme.threat = E.schemeThreshold(S) - 4;
+  S.round = 2;
+  S.intent = "attack";
+  S.sideSchemes = [{ uid: "ss-known", c: "the_great_chant", threat: 7 }];
+
+  assert.deepEqual(E.doomForecast(S), {
+    active: true,
+    spread: 2,
+    scheme: 0,
+    effects: 3,
+    total: 5,
+    remaining: 4,
+    advances: true,
+    lethal: true,
+  });
+});
+
+test("doom forecast respects sealed activations and warns on the final agenda", () => {
+  const S = E.newGame("sera", "nul", "normal", "doom-forecast-lethal");
+  S.scheme.stage = E.agendaDef(S).stages.length - 1;
+  S.scheme.threat = E.schemeThreshold(S) - 1;
+  S.intent = "scheme";
+  S.villainSealed = true;
+
+  assert.deepEqual(E.doomForecast(S), {
+    active: true,
+    spread: 1,
+    scheme: 0,
+    effects: 0,
+    total: 1,
+    remaining: 1,
+    advances: true,
+    lethal: true,
+  });
+
+  S.over = { win: false, reason: "scheme" };
+  assert.deepEqual(E.doomForecast(S), {
+    active: false,
+    spread: 0,
+    scheme: 0,
+    effects: 0,
+    total: 0,
+    remaining: 1,
+    advances: false,
+    lethal: false,
+  });
+});
+
 test("campaign retry aid affects the opening state without breaking deck determinism", () => {
   const base = E.newGame("odran", "morvane", "normal", "resolve-aid");
   const aided = E.newGame("odran", "morvane", "normal", "resolve-aid", { startShield: 2, openingHandBonus: 2 });

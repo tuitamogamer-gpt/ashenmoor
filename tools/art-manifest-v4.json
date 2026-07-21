@@ -62,5 +62,101 @@
   "crowning_ritual": {
     "historyId": "Uc22VMniNmWy3zbMb1cr",
     "ratio": "4:3"
+  },
+  "hero_ilva": {
+    "historyId": "Kedz1g8zwxtTnSvip22C",
+    "ratio": "3:4"
+  },
+  "villain_oszra": {
+    "historyId": "4pCBaWUMPjIV9nKXQGwm",
+    "ratio": "3:4"
+  },
+  "scheme_oszra": {
+    "historyId": "rO6dqaER2fd01J7K3LhI",
+    "ratio": "4:3"
+  },
+  "thorn_wolf": {
+    "historyId": "vIJwa7sYv7MMV1j6zACC",
+    "ratio": "4:3"
+  },
+  "briar_bear": {
+    "historyId": "GSsQRM1jjvcvQerEdchZ",
+    "ratio": "4:3"
+  },
+  "bone_choir": {
+    "historyId": "KblpfSVRIEXYAm2N3kXi",
+    "ratio": "4:3"
+  },
+  "moor_hawk": {
+    "historyId": "261AbHgdlJgD1CPiEznv",
+    "ratio": "4:3"
+  },
+  "pack_tactics": {
+    "historyId": "s8ezLzN4WlynsDXtmPFE",
+    "ratio": "4:3"
+  },
+  "wild_mending": {
+    "historyId": "AdFS0AD8TLCRF818jfqF",
+    "ratio": "4:3"
+  },
+  "call_of_the_moor": {
+    "historyId": "jTsx2EJ3kSaCuTjxLkeT",
+    "ratio": "4:3"
+  },
+  "thorn_ward": {
+    "historyId": "fwoOQBAbS2FCKuHrYqzO",
+    "ratio": "4:3"
+  },
+  "beast_bond": {
+    "historyId": "lTx5M6amHvMKzmEj16h8",
+    "ratio": "4:3"
+  },
+  "stampede": {
+    "historyId": "RkDsYdy0F7CbWG6J6JGu",
+    "ratio": "4:3"
+  },
+  "grave_thrall": {
+    "historyId": "8zdzbqipBKAcfKfPqDxF",
+    "ratio": "4:3"
+  },
+  "pale_shepherd": {
+    "historyId": "P2n3i7MgNAyloBQ2Ykjc",
+    "ratio": "4:3"
+  },
+  "rot_bloom": {
+    "historyId": "g02faHtYhCiYNVvG0Nil",
+    "ratio": "4:3"
+  },
+  "chorus_of_the_dead": {
+    "historyId": "rHKxoEdTMCd2ie0L3JUZ",
+    "ratio": "4:3"
+  },
+  "shroud_of_mourning": {
+    "historyId": "VE5FIPu8Ya6H0zouK7wZ",
+    "ratio": "4:3"
+  },
+  "pyre_burst": {
+    "historyId": "DaSn5wIclEJsWi1Fj6ZZ",
+    "ratio": "4:3"
+  },
+  "ember_veteran": {
+    "historyId": "xzKun8KsQUifQm0l3oM4",
+    "ratio": "4:3"
+  },
+  "mirror_ward": {
+    "historyId": "AYQx1JGq2aADgjbBYaAE",
+    "ratio": "4:3"
+  },
+  "void_siphon": {
+    "historyId": "OfRg7czU6TMTdQF0dYdr",
+    "ratio": "4:3"
+  },
+  "oath_of_iron": {
+    "historyId": "oNqPxzOagMPiWT6fQqID",
+    "ratio": "4:3"
+  },
+  "gravekeeper": {
+    "historyId": "g1UT5Lf0rDRULaNqVZvF",
+    "ratio": "4:3"
   }
 }

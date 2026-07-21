@@ -930,6 +930,7 @@ function revealModal(eid) {
     if (e.tough) notes.push(STR.reveal.tough);
     if (e.retaliate) notes.push(tpl(STR.reveal.retaliate, { n: e.retaliate }));
     if (e.surge) notes.push(STR.reveal.surge);
+    if (e.haunt) notes.push(STR.reveal.haunt);
     const el = document.createElement("div");
     el.className = "modal reveal-m";
     el.innerHTML = `
@@ -1375,20 +1376,24 @@ function render() {
       ${e.guard ? '<div class="kw guard">GUARD</div>' : ""}
       ${m.tough ? `<div class="kw tough" data-tip="${esc(STR.reveal.tough)}">TOUGH</div>` : ""}
       ${e.retaliate ? `<div class="kw ret" data-tip="${esc(tpl(STR.reveal.retaliate, { n: e.retaliate }))}">RET ${e.retaliate}</div>` : ""}
+      ${e.haunt ? `<div class="kw haunt" data-tip="${esc(STR.reveal.haunt)}">HAUNT</div>` : ""}
     </div>`;
   }).join("");
 
+  // upgrades can grant Disrupt to allies (beast_bond) — show and gate on the MODIFIED value
+  const allyThwBonus = S.upgrades.reduce((n, u) => n + ((CARDS[u.c].mod || {}).allyThw || 0), 0);
   const alliesHTML = S.allies.map((a) => {
     const c = CARDS[a.c];
+    const thwVal = c.thw + allyThwBonus;
     const canUse = E.canAct(S) && !a.exhausted && mode === "idle" && !running;
     return `
     <div class="card ally ${a.exhausted ? "exhausted" : ""}" data-act="ally" data-uid="${a.uid}" data-prev="p:${a.c}" data-fx="ally:${a.uid}" role="group" aria-label="${esc(c.name)}, ${a.hp} health${a.exhausted ? ", exhausted" : ""}">
       <div class="c-art"><img src="${artPath(a.c)}" alt=""></div>
       <div class="c-name">${c.name}</div>
-      <div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#10023;", c.thw)}${statChip("&#9829;", a.hp, "hp")}</div>
+      <div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#10023;", thwVal)}${statChip("&#9829;", a.hp, "hp")}</div>
       ${canUse ? `<div class="mini-btns">
           ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyAttack)}" aria-label="${esc(`${c.name}: attack`)}">&#9876;</button>` : ""}
-          ${c.thw > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}" aria-label="${esc(`${c.name}: disrupt`)}">&#10023;</button>` : ""}
+          ${thwVal > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}" aria-label="${esc(`${c.name}: disrupt`)}">&#10023;</button>` : ""}
         </div>` : ""}
     </div>`;
   }).join("");

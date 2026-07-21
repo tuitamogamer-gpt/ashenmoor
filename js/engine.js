@@ -130,6 +130,7 @@ export function addThreat(S, n) {
     const adv = st.onAdvance || {};
     if (adv.healVillain) healVillain(S, adv.healVillain);
     if (adv.spawn && !S.over) spawnMinion(S, adv.spawn);
+    if (adv.revive && !S.over) reviveMinion(S);
     if (adv.directDmg && !S.over) { log(S, t(L.agendaDirect, { n: adv.directDmg }), "bad"); dmgHero(S, adv.directDmg); }
     if (adv.discardRandom && !S.over) discardRandom(S, adv.discardRandom);
     if (adv.doom && !S.over) { S.scheme.threat += adv.doom; fx(S, { kind: "threat+", n: adv.doom, at: "scheme" }); }
@@ -251,6 +252,34 @@ function killMinion(S, uid) {
   S.enc.discard.push(m.c);
   log(S, t(L.allyDown, { ally: ENCOUNTERS[m.c].name }).replace("destroyed", "defeated"), "good");
   fx(S, { kind: "kill", at: "minion:" + uid });
+  // HAUNT — the death itself is a trap
+  const haunt = ENCOUNTERS[m.c].haunt;
+  if (haunt && !S.over) {
+    log(S, t(L.haunt, { m: ENCOUNTERS[m.c].name }), "bad");
+    if (haunt.threat) addThreat(S, haunt.threat);
+    if (haunt.healVillain && !S.over) healVillain(S, haunt.healVillain);
+  }
+  // villain upgrades that feed on death
+  if (!S.over) {
+    const dh = S.villain.attachments.reduce((a, id) => a + ((ENCOUNTERS[id].trigger || {}).deathHeal || 0), 0);
+    if (dh > 0) healVillain(S, dh);
+  }
+}
+
+// grave recursion — pull the first dead minion back from the encounter discard.
+// Returns null ONLY when there is nothing to revive; a full court still counts
+// as a revive attempt (crowd doom applies, no extra "else" penalty stacks).
+function reviveMinion(S) {
+  const i = S.enc.discard.findIndex((id) => ENCOUNTERS[id].type === "minion");
+  if (i < 0) return null;
+  if (S.minions.length >= CONFIG.minionLimit) {
+    log(S, L.minionCrowded, "bad");
+    addThreat(S, CONFIG.crowdedDoom);
+    return { crowded: true }; // the grave stirred — the minion just stays buried
+  }
+  const [id] = S.enc.discard.splice(i, 1);
+  log(S, t(L.revive, { m: ENCOUNTERS[id].name }), "bad");
+  return spawnMinion(S, id);
 }
 
 function dmgHero(S, n) {
@@ -364,7 +393,8 @@ export function validTargets(S, spec) {
 export function targetSpec(S, card) {
   const explicit = (card.effect && card.effect.target) || (card.enter && card.enter.target) || null;
   if (explicit) return explicit;
-  if (card.effect && card.effect.thwart && S.sideSchemes.length) return "scheme";
+  const thwarts = (card.effect && card.effect.thwart) || (card.enter && card.enter.thwart);
+  if (thwarts && S.sideSchemes.length) return "scheme";
   return null;
 }
 
@@ -419,6 +449,29 @@ function resolveEffect(S, ef, targetId, tone = "ember") {
   }
   if (ef.seal) { S.villainSealed = true; }
   if (ef.selfDmg) dmgHero(S, ef.selfDmg);
+  // ---- pack effects (v2.0, Ilva) ----
+  if (ef.packDmg && !S.over) {
+    const n = ef.packDmg.base + S.allies.length * ef.packDmg.per;
+    fx(S, { kind: "beam", from: "hero", to: anchorOf(targetId), tone });
+    dealToTarget(S, targetId, n);
+  }
+  if (ef.dmgAllPerAlly && !S.over) {
+    const n = Math.max(1, S.allies.length * ef.dmgAllPerAlly);
+    fx(S, { kind: "nova", tone });
+    dmgVillain(S, n);
+    for (const m of S.minions.slice()) { if (S.over) break; dmgMinion(S, m.uid, n); }
+  }
+  if (ef.healAllies) {
+    for (const a of S.allies) {
+      const max = CARDS[a.c].hp;
+      const h = Math.min(ef.healAllies, max - a.hp);
+      if (h > 0) { a.hp += h; fx(S, { kind: "heal", n: h, at: "ally:" + a.uid }); }
+    }
+    if (S.allies.length) log(S, t(L.healAllies, { n: ef.healAllies }), "good");
+  }
+  if (ef.bonusDrawAllies && S.allies.length >= ef.bonusDrawAllies.need) {
+    draw(S, ef.bonusDrawAllies.draw);
+  }
 }
 
 // ---------- player actions (return null on success, error string otherwise) ----------
@@ -514,6 +567,19 @@ export function heroAbility(S, targetId = null) {
     S.hero.shield += 1;
     log(S, L.abilityOdran, "you");
     fx(S, { kind: "shield", n: 1 });
+  } else if (kind === "packHeal1") {
+    // Ilva: mend the most wounded packmate; alone, she shields herself
+    S.hero.abilityUsed++;
+    if (S.allies.length) {
+      const worst = S.allies.reduce((b, a) => (CARDS[a.c].hp - a.hp > CARDS[b.c].hp - b.hp ? a : b));
+      const h = Math.min(2, CARDS[worst.c].hp - worst.hp);
+      if (h > 0) { worst.hp += h; fx(S, { kind: "heal", n: h, at: "ally:" + worst.uid }); }
+      log(S, L.abilityIlva, "you");
+    } else {
+      S.hero.shield += 1;
+      log(S, L.abilityIlvaAlone, "you");
+      fx(S, { kind: "shield", n: 1 });
+    }
   } else {
     S.hero.abilityUsed++;
     let tgt = targetId || "scheme";
@@ -547,11 +613,11 @@ export function allyAct(S, uid, mode, targetId = null) {
     const tgt = targetId || "scheme";
     if (tgt === "scheme" && hasCrisis(S)) { a.exhausted = false; return A.crisisBlock; }
     fx(S, { kind: "beam", from: "ally:" + uid, to: thwartAnchor(tgt), tone: "teal" });
-    const rem = removeThreatFrom(S, tgt, card.thw);
+    const rem = removeThreatFrom(S, tgt, card.thw + modSum(S, "allyThw"));
     log(S, t(L.basicThwart, { who: card.name, n: rem }), "you");
     fx(S, { kind: "thwart" });
   }
-  if (!S.over) dmgAlly(S, uid, CONFIG.consequential);
+  if (!S.over && modSum(S, "noConsequential") === 0) dmgAlly(S, uid, CONFIG.consequential);
   return null;
 }
 
@@ -723,6 +789,14 @@ export function resolveReveal(S) {
     if (f.crowning) {
       if (S.villain.attachments.length) { addThreat(S, 2); if (!S.over) healVillain(S, 2); }
       else addThreat(S, 1);
+    }
+    // ---- the Gravebloom's set (v2.0) ----
+    if (f.revive && !S.over) {
+      if (!reviveMinion(S)) addThreat(S, f.elseThreat || 2);
+    }
+    if (f.threatPerDeadMinion && !S.over) {
+      const dead = S.enc.discard.filter((x) => ENCOUNTERS[x].type === "minion").length;
+      addThreat(S, Math.min(f.cap || 3, dead * f.threatPerDeadMinion));
     }
   }
   // SURGE — the Court piles on: reveal another encounter card

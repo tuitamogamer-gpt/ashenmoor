@@ -1370,3 +1370,11 @@ body.coop .logpanel { top: 46px; }
   .menu .villain-pick .vpick { width: min(330px, 84vw); }
   .dock-row .dock-btn { width: 44px; height: 44px; }
 }
+
+/* ---------- v2.0 The Wild and the Grave ---------- */
+.f-wild { --acc: #6fbf5f; }
+.cardface.f-ilva, .f-ilva .cardface { border-color: #4a7a3e; }
+.card.hero.f-wild { border-color: #4a7a3e; }
+.kw.haunt { background: #241b2e; border-color: #8a6fb0; color: #d5bdf5; cursor: help; }
+/* [data-tip] { position: relative } was silently flattening keyword badges — restore corner placement */
+.kw[data-tip] { position: absolute; }

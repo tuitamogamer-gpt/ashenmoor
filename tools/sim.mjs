@@ -94,9 +94,10 @@ function evalCard(S, h) {
 
   if (card.type === "ally") {
     if (S.allies.length >= 3) return null;
-    const target =
-      card.enter && card.enter.target ? pickEnemyTarget(S) : null;
+    let target = card.enter && card.enter.target ? pickEnemyTarget(S) : null;
     if (card.enter && card.enter.target && !target) return null;
+    if (!target && card.enter && card.enter.thwart && S.sideSchemes.length)
+      target = thwartTarget(S); // enter.thwart needs a scheme target when side schemes exist
     return { score: 70, target };
   }
   if (card.type === "upgrade") return { score: 60, target: null };
@@ -134,6 +135,19 @@ function evalCard(S, h) {
     if (ef.draw) score = Math.max(score, 55); // shield_wall semi-cantrip
   }
   if (ef.seal && S.intent === "attack") score = Math.max(score, 58);
+  // ---- Ilva's pack effects (v2.0) ----
+  if (ef.packDmg) {
+    const n = ef.packDmg.base + S.allies.length * ef.packDmg.per;
+    target = eventDmgTarget(S, n);
+    score = Math.max(score, n >= 3 ? 90 : n >= 2 ? 78 : 45);
+  }
+  if (ef.dmgAllPerAlly) {
+    const n = Math.max(1, S.allies.length * ef.dmgAllPerAlly);
+    if (SMART && n < 2 && nMin === 0) return null;
+    score = Math.max(score, nMin >= 2 && n >= 2 ? 92 : n >= 3 ? 88 : 60);
+  }
+  if (ef.healAllies && S.allies.some((a) => a.hp < CARDS[a.c].hp))
+    score = Math.max(score, 66);
   if (score < 40) return null;
   return { score, target };
 }
@@ -421,8 +435,8 @@ if (isMain && process.env.TRACE) {
   process.exit(0);
 }
 if (isMain) {
-  const heroes = ["kaelen", "sera", "odran"];
-  const villains = ["morvane", "vexahl", "nul"];
+  const heroes = ["kaelen", "sera", "odran", "ilva"];
+  const villains = ["morvane", "vexahl", "nul", "oszra"];
   const results = [];
   const crashes = [];
 

@@ -120,6 +120,8 @@ button { font-family: inherit; }
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
   background:
     radial-gradient(1200px 600px at 50% -100px, rgba(63, 201, 182, 0.06), transparent),
     radial-gradient(1000px 500px at 50% 110%, rgba(255, 138, 61, 0.05), transparent),
@@ -157,6 +159,7 @@ button { font-family: inherit; }
 
 /* ---------- zones ---------- */
 .villain-zone {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -177,7 +180,7 @@ button { font-family: inherit; }
   pointer-events: none;
 }
 .board {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1388,3 +1391,13 @@ body.coop .logpanel { top: 46px; }
 .ss-threat .burst-at { font-size: 11px; opacity: .75; cursor: help; }
 .ss-threat.near-burst { color: #ff9c86; animation: crisisPulse 1.2s ease-in-out infinite; }
 .villain .vkeyword { pointer-events: auto; } /* the parent card disables child pointer-events — tooltip needs them back */
+
+/* ---------- v2.2 Clarity: svg icons + living tooltips ---------- */
+.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; }
+.bpips .ic { width: 0.85em; height: 0.85em; }
+.burst-at .ic { width: 0.9em; height: 0.9em; }
+/* the parent card disables child pointer-events — buffs must stay hoverable */
+.villain .chips .chip, .villain .vchip, .scheme .agenda-chips { pointer-events: auto; }
+.vchip { cursor: help; }
+.agenda-chips { cursor: help; }
+.vchip[data-tip] { position: absolute; } /* data-tip's position:relative must not unseat corner chips */

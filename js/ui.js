@@ -8,6 +8,7 @@ import * as E from "./engine.js";
 import * as CAMP from "./campaign.js";
 import { sfx, setMuted, isMuted, setVolumes, floatText, shake, banner, startDrone, stopDrone, startMusic, stopMusic, setMusicStage } from "./fx.js";
 import * as VFX from "./vfx.js";
+import { ICON } from "./icons.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = () => $("#app");
@@ -294,7 +295,7 @@ function renderMenu() {
           <img src="${artPath(h.art)}" alt="">
           <div class="pick-name">${h.name}</div>
           <div class="pick-title">${h.title}</div>
-          <div class="pick-stats">&#9876;${h.atk} &#10023;${h.thw} &#128737;${h.def} &#9829;${h.hp}</div>
+          <div class="pick-stats">${ICON.atk}${h.atk} ${ICON.thw}${h.thw} ${ICON.def}${h.def} ${ICON.hp}${h.hp}</div>
           <div class="pick-ab"><b>${h.ability.name}:</b> ${h.ability.text}</div>
         </button>`).join("")}
     </div>
@@ -1306,13 +1307,13 @@ function toggleMute() {
 }
 
 // ---------- card HTML builders ----------
-function statChip(sym, n, cls = "") { return `<span class="stat ${cls}">${sym}${n}</span>`; }
+function statChip(ic, n, cls = "") { return `<span class="stat ${cls}">${ICON[ic] || ic}${n}</span>`; }
 
 function playerCardHTML(cid, opts = {}) {
   const c = CARDS[cid];
   const cost = c.cost == null ? `<div class="c-cost res">${c.res || 1}</div>` : `<div class="c-cost">${opts.cost !== undefined ? opts.cost : c.cost}</div>`;
   const stats = c.type === "ally"
-    ? `<div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#10023;", c.thw)}${statChip("&#9829;", opts.hp !== undefined ? opts.hp : c.hp, "hp")}</div>` : "";
+    ? `<div class="c-stats">${statChip("atk", c.atk)}${statChip("thw", c.thw)}${statChip("hp", opts.hp !== undefined ? opts.hp : c.hp, "hp")}</div>` : "";
   return `
     <div class="cardface pcard f-${c.faction} t-${c.type}">
       ${cost}
@@ -1327,10 +1328,10 @@ function playerCardHTML(cid, opts = {}) {
 function encCardHTML(eid, opts = {}) {
   const c = ENCOUNTERS[eid];
   const stats = c.type === "minion"
-    ? `<div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#9829;", opts.hp !== undefined ? opts.hp : c.hp, "hp")}</div>` : "";
+    ? `<div class="c-stats">${statChip("atk", c.atk)}${statChip("hp", opts.hp !== undefined ? opts.hp : c.hp, "hp")}</div>` : "";
   return `
     <div class="cardface pcard f-void t-${c.type}">
-      ${c.boost ? `<div class="bpips" title="Boost">${"&#9670;".repeat(c.boost)}</div>` : ""}
+      ${c.boost ? `<div class="bpips" title="Boost">${ICON.doom.repeat(c.boost)}</div>` : ""}
       <div class="c-art"><img src="${artPath(eid)}" alt="" draggable="false" loading="lazy"></div>
       <div class="c-name">${c.name}</div>
       <div class="c-type">${c.type.toUpperCase()}</div>
@@ -1343,10 +1344,10 @@ function encCardHTML(eid, opts = {}) {
 function agendaOngoingChips(aStage) {
   const o = aStage.ongoing || {};
   const parts = [];
-  if (o.atk) parts.push(`&#9876;+${o.atk}`);
-  if (o.sch) parts.push(`&#9737;+${o.sch}`);
-  if (o.minionAtk) parts.push(`minions &#9876;+${o.minionAtk}`);
-  if (o.doomPerRound) parts.push(`&#9670;+${o.doomPerRound}/rd`);
+  if (o.atk) parts.push(`${ICON.atk}+${o.atk}`);
+  if (o.sch) parts.push(`${ICON.sch}+${o.sch}`);
+  if (o.minionAtk) parts.push(`minions ${ICON.atk}+${o.minionAtk}`);
+  if (o.doomPerRound) parts.push(`${ICON.doom}+${o.doomPerRound}/rd`);
   return parts.map((p) => `<span class="agchip">${p}</span>`).join("");
 }
 
@@ -1371,7 +1372,7 @@ function render() {
     <div class="card minion ${targetable(m.uid)}" data-target="${m.uid}" data-act="minion" data-prev="e:${m.c}" data-fx="minion:${m.uid}" role="button" tabindex="0" aria-label="Inspect ${esc(e.name)}, ${m.hp} health">
       <div class="c-art"><img src="${artPath(m.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
-      <div class="c-stats">${statChip("&#9876;", e.atk)}${statChip("&#9829;", m.hp, "hp")}</div>
+      <div class="c-stats">${statChip("atk", e.atk)}${statChip("hp", m.hp, "hp")}</div>
       ${e.quickstrike ? '<div class="kw">QUICK</div>' : ""}
       ${e.guard ? '<div class="kw guard">GUARD</div>' : ""}
       ${m.tough ? `<div class="kw tough" data-tip="${esc(STR.reveal.tough)}">TOUGH</div>` : ""}
@@ -1390,16 +1391,16 @@ function render() {
     <div class="card ally ${a.exhausted ? "exhausted" : ""}" data-act="ally" data-uid="${a.uid}" data-prev="p:${a.c}" data-fx="ally:${a.uid}" role="group" aria-label="${esc(c.name)}, ${a.hp} health${a.exhausted ? ", exhausted" : ""}">
       <div class="c-art"><img src="${artPath(a.c)}" alt=""></div>
       <div class="c-name">${c.name}</div>
-      <div class="c-stats">${statChip("&#9876;", c.atk)}${statChip("&#10023;", thwVal)}${statChip("&#9829;", a.hp, "hp")}</div>
+      <div class="c-stats">${statChip("atk", c.atk)}${statChip("thw", thwVal)}${statChip("hp", a.hp, "hp")}</div>
       ${canUse ? `<div class="mini-btns">
-          ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyAttack)}" aria-label="${esc(`${c.name}: attack`)}">&#9876;</button>` : ""}
-          ${thwVal > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}" aria-label="${esc(`${c.name}: disrupt`)}">&#10023;</button>` : ""}
+          ${c.atk > 0 ? `<button class="mini" data-act="ally-attack" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyAttack)}" aria-label="${esc(`${c.name}: attack`)}">${ICON.atk}</button>` : ""}
+          ${thwVal > 0 ? `<button class="mini" data-act="ally-thwart" data-uid="${a.uid}" data-tip="${esc(STR.tips.allyThwart)}" aria-label="${esc(`${c.name}: disrupt`)}">${ICON.thw}</button>` : ""}
         </div>` : ""}
     </div>`;
   }).join("");
 
   const upgradesHTML = S.upgrades.map((u) => `
-    <div class="chip upgrade" data-prev="p:${u.c}">${CARDS[u.c].name}</div>`).join("");
+    <div class="chip upgrade" data-prev="p:${u.c}" data-tip="${esc(CARDS[u.c].text)}">${CARDS[u.c].name}</div>`).join("");
 
   const attachHTML = S.villain.attachments.map((id) => `
     <div class="chip attach" data-prev="e:${id}" data-tip="${esc(ENCOUNTERS[id].text)}">&#9960; ${ENCOUNTERS[id].name}</div>`).join("");
@@ -1410,7 +1411,7 @@ function render() {
     <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-act="side-scheme" data-prev="e:${ss.c}" data-fx="side:${ss.uid}" role="button" ${mode === "target" ? 'tabindex="0"' : 'tabindex="-1"'} aria-label="${esc(`${e.name}, ${ss.threat} doom`)}">
       <div class="c-art"><img src="${artPath(ss.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
-      <div class="ss-threat ${e.burst && ss.threat >= e.burst.at - 2 ? "near-burst" : ""}">&#9670; <b>${ss.threat}</b>${e.burst ? `<span class="burst-at" data-tip="${esc(STR.tips.burst)}">/${e.burst.at}&#128165;</span>` : ""}</div>
+      <div class="ss-threat ${e.burst && ss.threat >= e.burst.at - 2 ? "near-burst" : ""}">${ICON.doom} <b>${ss.threat}</b>${e.burst ? `<span class="burst-at" data-tip="${esc(STR.tips.burst)}">/${e.burst.at}${ICON.burst}</span>` : ""}</div>
       ${e.crisis ? `<div class="kw crisis-kw" data-tip="${esc(STR.tips.crisis)}">&#128274; CRISIS</div>` : ""}
     </div>`;
   }).join("");
@@ -1438,8 +1439,8 @@ function render() {
 
   const heroBtns = E.canAct(S) && mode === "idle" && !running ? `
     <div class="hero-actions">
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}" ${S.hero.exhausted ? "disabled" : ""}>&#9876; ${STR.actions.attack} ${E.heroAtk(S)}</button>
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}" ${S.hero.exhausted ? "disabled" : ""}>&#10023; ${STR.actions.thwart} ${E.heroThw(S)}</button>
+      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}" ${S.hero.exhausted ? "disabled" : ""}>${ICON.atk} ${STR.actions.attack} ${E.heroAtk(S)}</button>
+      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}" ${S.hero.exhausted ? "disabled" : ""}>${ICON.thw} ${STR.actions.thwart} ${E.heroThw(S)}</button>
       <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}" ${S.hero.abilityUsed >= E.abilityLimit(S) ? "disabled" : ""}>&#10038; ${H.ability.name}</button>
     </div>` : "";
 
@@ -1469,7 +1470,7 @@ function render() {
     </div>` : "";
 
   const manaChip = mode === "idle" && !running && E.canAct(S) ? `
-    <div class="action-dock mana-idle" data-tip="${esc(STR.dock.pool)}">&#10023; ${payPool}</div>` : "";
+    <div class="action-dock mana-idle" data-tip="${esc(STR.dock.pool)}">${ICON.res} ${payPool}</div>` : "";
 
   document.body.className = "in-game";
   const prevBars = captureBars();
@@ -1499,12 +1500,12 @@ function render() {
       <div class="card villain ${targetable("villain")}" data-target="villain" data-act="villain-card" data-prev="v" data-fx="villain" role="button" tabindex="0" aria-label="${esc(`${st.title}, ${S.villain.hp} health`)}">
         <div class="c-art"><img src="${artPath(VILLAINS[S.villainId].art)}" alt=""></div>
         <div class="stage-pips">${VILLAINS[S.villainId].stages.map((_, i) => `<i class="${i <= S.villain.stage ? "on" : ""}"></i>`).join("")}</div>
-        ${S.villain.stun > 0 ? `<div class="vchip stun">&#9889;${S.villain.stun}</div>` : ""}
-        ${S.villain.burn > 0 ? `<div class="vchip burn">&#128293;${S.villain.burn}</div>` : ""}
+        ${S.villain.stun > 0 ? `<div class="vchip stun" data-tip="${esc(STR.tips.stunChip)}">&#9889;${S.villain.stun}</div>` : ""}
+        ${S.villain.burn > 0 ? `<div class="vchip burn" data-tip="${esc(STR.tips.burnChip)}">&#128293;${S.villain.burn}</div>` : ""}
         <div class="c-name">${st.title}</div>
         ${VILLAINS[S.villainId].keyword ? `<div class="vkeyword" data-tip="${esc(VILLAINS[S.villainId].keyword.text)}">&#128081; ${VILLAINS[S.villainId].keyword.name}</div>` : ""}
         <div class="c-stats">
-          ${statChip("&#9876;", E.villainAtkVal(S))}${statChip("&#9737;", E.villainSchVal(S))}
+          ${statChip("atk", E.villainAtkVal(S))}${statChip("sch", E.villainSchVal(S))}
         </div>
         ${hpbarHTML("", Math.max(0, 100 * S.villain.hp / (st.hp + CONFIG.difficulty[S.difficulty].villainHpBonus)), String(S.villain.hp))}
         ${attachHTML ? `<div class="chips">${attachHTML}</div>` : ""}
@@ -1517,7 +1518,7 @@ function render() {
           <b class="tnum">${S.scheme.threat}<span>/${th}</span></b>
           <div class="pips">${Array.from({ length: th }, (_, i) => `<i class="${i < S.scheme.threat ? "on" : ""}"></i>`).join("")}</div>
           <div class="s-stage">${esc(aStage.name)} · ${S.scheme.stage + 1}/${agenda.stages.length}</div>
-          ${agendaChips ? `<div class="agenda-chips">${agendaChips}</div>` : ""}
+          ${agendaChips ? `<div class="agenda-chips" data-tip="${esc(STR.tips.agendaOngoing)}">${agendaChips}</div>` : ""}
         </div>
       </div>
       <div class="sideschemes">${sideHTML}</div>
@@ -1532,9 +1533,9 @@ function render() {
         <div class="card hero f-${H.color} ${S.hero.exhausted ? "exhausted" : ""}" data-act="hero" data-prev="h" data-fx="hero" role="button" tabindex="0" aria-label="${esc(`${H.name}, ${S.hero.hp} of ${S.hero.maxHp} health`)}">
           <div class="c-art"><img src="${artPath(H.art)}" alt=""></div>
           <div class="c-name">${H.name}</div>
-          <div class="c-stats">${statChip("&#9876;", E.heroAtk(S))}${statChip("&#10023;", E.heroThw(S))}${statChip("&#128737;", E.heroDef(S))}</div>
+          <div class="c-stats">${statChip("atk", E.heroAtk(S))}${statChip("thw", E.heroThw(S))}${statChip("def", E.heroDef(S))}</div>
           ${hpbarHTML("hero-hp", Math.max(0, 100 * S.hero.hp / S.hero.maxHp), `${S.hero.hp}/${S.hero.maxHp}`)}
-          ${S.hero.shield > 0 ? `<div class="shield-badge">&#128737;${S.hero.shield}</div>` : ""}
+          ${S.hero.shield > 0 ? `<div class="shield-badge">${ICON.def}${S.hero.shield}</div>` : ""}
         </div>
         ${heroBtns}
       </div>
@@ -1644,7 +1645,7 @@ function renderInspector() {
     inner = `<div class="cardface pcard f-${H.color}"><div class="c-art"><img src="${artPath(H.art)}"></div>
       <div class="c-name">${H.name}</div><div class="c-type">${H.title.toUpperCase()}</div>
       <div class="c-text"><b>${H.ability.name}:</b> ${H.ability.text}</div>
-      <div class="c-stats">${statChip("&#9876;", E.heroAtk(S))}${statChip("&#10023;", E.heroThw(S))}${statChip("&#128737;", E.heroDef(S))}${statChip("&#9829;", S.hero.hp, "hp")}</div></div>`;
+      <div class="c-stats">${statChip("atk", E.heroAtk(S))}${statChip("thw", E.heroThw(S))}${statChip("def", E.heroDef(S))}${statChip("hp", S.hero.hp, "hp")}</div></div>`;
     flavor = H.flavor;
   }
   box.innerHTML = `<button class="inspector-close" data-act="inspector-close" aria-label="${esc(STR.actions.cancel)}">&#10005;</button>${inner}${flavor ? `<p class="flavor">${flavor}</p>` : ""}${actions ? `<div class="insp-actions">${actions}</div>` : ""}`;

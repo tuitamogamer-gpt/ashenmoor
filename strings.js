@@ -19,7 +19,7 @@ export const STR = {
     stats: "Statistics",
     firstVigil: "Choose a Warden and Nightmare below, or begin immediately with the highlighted pair.",
     mute: "Sound",
-    version: "v2.1 · Signatures",
+    version: "v2.2 · Clarity",
   },
   coop: {
     title: "TWIN VIGILS",
@@ -218,6 +218,9 @@ export const STR = {
     doom: "The villain's agenda. When the doom track fills, it advances to its next stage — with a one-time strike and a lasting twist. Overflow doom carries over. If stage 3 fills, you lose.",
     crisis: "CRISIS — while this side scheme is in play, no doom can be removed from the agenda. Sever it first!",
     burst: "This side scheme grows every second villain phase. If it fills to this number it DETONATES with its printed effect — and you get no sever reward.",
+    stunChip: "Stunned — the villain skips his next ATTACK activation (forced attacks included).",
+    burnChip: "Burning — he takes 1 damage at the start of each villain phase, then 1 Burn fades.",
+    agendaOngoing: "Lasting twist of the CURRENT agenda stage — active until the agenda advances again.",
     deck: "Your deck. When it empties, it reshuffles and adds 1 doom.",
     discard: "Discard pile — click to browse it.",
     encDeck: "The encounter deck — villain phase reveals and attack boosts are drawn from here.",

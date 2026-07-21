@@ -58,12 +58,21 @@ function pickEnemyTarget(S) {
 }
 
 // where to aim disrupts: a CRISIS side scheme shields the agenda, so it
-// must be severed first (lowest threat clears fastest); else the agenda
+// must be severed first (lowest threat clears fastest); then any side scheme
+// about to BURST; else the agenda
+function nearBurst(S) {
+  return S.sideSchemes.filter((ss) => {
+    const b = ENCOUNTERS[ss.c].burst;
+    return b && ss.threat >= b.at - 2;
+  });
+}
 function thwartTarget(S) {
   if (E.hasCrisis(S)) {
     const crisis = S.sideSchemes.filter((ss) => ENCOUNTERS[ss.c].crisis);
     return crisis.reduce((b, ss) => (ss.threat < b.threat ? ss : b)).uid;
   }
+  const nb = nearBurst(S);
+  if (nb.length) return nb.reduce((a, b) => (a.threat >= b.threat ? a : b)).uid;
   return "scheme";
 }
 
@@ -122,7 +131,7 @@ function evalCard(S, h) {
     if (SMART && nMin === 0 && S.villain.hp > ef.dmgAll) return null;
     score = nMin >= 2 ? 92 : nMin === 1 || villainLow ? 85 : 70;
   }
-  if (ef.thwart && (threat >= th - EVENT_MARGIN || E.hasCrisis(S))) {
+  if (ef.thwart && (threat >= th - EVENT_MARGIN || E.hasCrisis(S) || nearBurst(S).length)) {
     score = Math.max(score, 100);
     if (S.sideSchemes.length) target = thwartTarget(S);
   }
@@ -201,7 +210,7 @@ function allyActions(S) {
     if (a.exhausted || !S.allies.includes(a)) continue;
     if (a.uid === blocker) continue;
     const card = CARDS[a.c];
-    if ((card.thw || 0) > 0 && (S.scheme.threat >= th - ALLY_MARGIN || E.hasCrisis(S))) {
+    if ((card.thw || 0) > 0 && (S.scheme.threat >= th - ALLY_MARGIN || E.hasCrisis(S) || nearBurst(S).length)) {
       E.allyAct(S, a.uid, "thwart", thwartTarget(S));
     } else {
       E.allyAct(S, a.uid, "attack", pickEnemyTarget(S));
@@ -282,8 +291,13 @@ function defend(S) {
   // block with the lowest-hp ready ally when the ally is dying anyway
   // (1 hp = next consequential hit kills it) or the hero would take >=3;
   // never trade an ally for a trivial 1-damage hit
+  // vs OVERWHELM a dying blocker leaks up to 2 damage through — chump only
+  // when the hero would still take clearly more by any other option
+  const overwhelm = E.villainKeyword(S) === "overwhelm" && opt.name && S.vp.pending?.attacker?.kind === "villain";
+  const leak = (o) => (overwhelm && o.dies ? 1 : 0);
   const chumpOk =
-    ready.length && ((ready[0].hp === 1 && d >= 2) || heroWouldTake >= 3);
+    ready.length && ((ready[0].hp === 1 && d >= 2) || heroWouldTake >= 3) &&
+    (!ready.length || heroWouldTake >= leak(ready[0]) + 2 || !ready[0].dies);
   if (chumpOk) {
     // prefer the cheapest ally that SURVIVES the hit; else chump the lowest
     const survivors = ready.filter((o) => !o.dies);

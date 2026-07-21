@@ -1378,3 +1378,13 @@ body.coop .logpanel { top: 46px; }
 .kw.haunt { background: #241b2e; border-color: #8a6fb0; color: #d5bdf5; cursor: help; }
 /* [data-tip] { position: relative } was silently flattening keyword badges — restore corner placement */
 .kw[data-tip] { position: absolute; }
+
+/* ---------- v2.1 Signatures ---------- */
+.vkeyword {
+  font-size: 9.5px; letter-spacing: .08em; text-align: center; cursor: help;
+  color: #e8c66a; background: #2a2138cc; border: 1px solid #6a5a30;
+  border-radius: 7px; padding: 2px 6px; margin: 2px 8px 0;
+}
+.ss-threat .burst-at { font-size: 11px; opacity: .75; cursor: help; }
+.ss-threat.near-burst { color: #ff9c86; animation: crisisPulse 1.2s ease-in-out infinite; }
+.villain .vkeyword { pointer-events: auto; } /* the parent card disables child pointer-events — tooltip needs them back */

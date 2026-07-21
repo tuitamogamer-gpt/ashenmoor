@@ -25,6 +25,7 @@ export const agendaStage = (S) => agendaDef(S).stages[S.scheme.stage];
 const agendaMod = (S, k) => (agendaStage(S).ongoing || {})[k] || 0;
 export const hasOngoing = (S, key) => S.sideSchemes.some((ss) => ENCOUNTERS[ss.c].ongoing === key);
 export const hasCrisis = (S) => S.sideSchemes.some((ss) => ENCOUNTERS[ss.c].crisis);
+export const villainKeyword = (S) => (villainDef(S).keyword || {}).id || null;
 export const minionAtkVal = (S, m) => ENCOUNTERS[m.c].atk + (hasOngoing(S, "minionAtk1") ? 1 : 0) + agendaMod(S, "minionAtk");
 export const villainAtkVal = (S) =>
   stage(S).atk + (CONFIG.difficulty[S.difficulty].villainAtkBonus || 0) + S.villain.atkBuff + (hasOngoing(S, "villainAtk1") ? 1 : 0) + agendaMod(S, "atk") +
@@ -263,6 +264,14 @@ function killMinion(S, uid) {
   if (!S.over) {
     const dh = S.villain.attachments.reduce((a, id) => a + ((ENCOUNTERS[id].trigger || {}).deathHeal || 0), 0);
     if (dh > 0) healVillain(S, dh);
+  }
+  // MOURNFUL (Oszra): the first minion death each round feeds her fullest side scheme
+  if (!S.over && villainKeyword(S) === "mournful" && S.sideSchemes.length && !S.villain.mournUsed) {
+    S.villain.mournUsed = true;
+    const fullest = S.sideSchemes.reduce((a, b) => (a.threat >= b.threat ? a : b));
+    fullest.threat += 1;
+    log(S, t(L.mournful, { t: ENCOUNTERS[fullest.c].name }), "bad");
+    fx(S, { kind: "threat+", n: 1, at: "side:" + fullest.uid });
   }
 }
 
@@ -656,10 +665,53 @@ function queueAttack(S, attacker) {
       boostCard = S.enc.deck.pop();
       S.enc.discard.push(boostCard);
       boost = ENCOUNTERS[boostCard].boost || 0;
+      // SURGING (Nul): his boosts are never less than 1
+      if (villainKeyword(S) === "surging" && boost < 1) boost = 1;
     }
   }
   S.vp.pending = { attacker, name, dmg, boost, boostCard };
   fx(S, { kind: "incoming" });
+}
+
+// a forced villain attack (burst, void_lash) still respects Seal and Stun —
+// the printed promises of Temporal Slip and Stagger hold everywhere
+function forcedVillainAttack(S) {
+  if (S.villainSealed) { log(S, L.villainSealed, "good"); return; }
+  if (S.villain.stun > 0) {
+    S.villain.stun--;
+    log(S, t(L.stunned, { v: stage(S).title }), "good");
+    fx(S, { kind: "stunfx" });
+    return;
+  }
+  if (!S.vp.pending) queueAttack(S, { kind: "villain" });
+}
+
+// side schemes grow during the doom step and DETONATE when they fill —
+// sever them before the burst threshold or eat the printed effect
+function growSideSchemes(S) {
+  for (const ss of S.sideSchemes.slice()) {
+    if (S.over) return;
+    if (!S.sideSchemes.includes(ss)) continue; // a previous burst may cascade
+    const e = ENCOUNTERS[ss.c];
+    if (e.grow && S.round % 2 === 0) { // schemes swell every second villain phase
+      ss.threat += e.grow;
+      fx(S, { kind: "threat+", n: e.grow, at: "side:" + ss.uid });
+    }
+    const b = e.burst;
+    if (b && ss.threat >= b.at) {
+      S.sideSchemes = S.sideSchemes.filter((x) => x.uid !== ss.uid);
+      S.enc.discard.push(ss.c);
+      log(S, t(L.sideBurst, { t: e.name }), "bad");
+      fx(S, { kind: "burst", at: "side:" + ss.uid });
+      if (b.threat) addThreat(S, b.threat);
+      if (S.over) return;
+      if (b.spawn) spawnMinion(S, b.spawn);
+      if (b.discardRandom) discardRandom(S, b.discardRandom);
+      if (b.healVillain) healVillain(S, b.healVillain);
+      if (b.directDmg) dmgHero(S, b.directDmg);
+      if (b.villainAttack && !S.over) forcedVillainAttack(S);
+    }
+  }
 }
 
 export function ackAgenda(S) { if (S.vp) S.vp.agenda = null; }
@@ -679,6 +731,8 @@ export function stepVillain(S) {
     log(S, t(L.doom, { n: dn }), "bad");
     fx(S, { kind: "doomPulse" });
     addThreat(S, dn);
+    if (S.over) return;
+    growSideSchemes(S);
   } else if (step === "villain") {
     if (S.villainSealed) {
       log(S, L.villainSealed, "good");
@@ -709,6 +763,7 @@ export function stepVillain(S) {
   } else if (step === "cleanup") {
     S.villainSealed = false;
     S.villain.armorUsed = false;
+    S.villain.mournUsed = false;
     S.hero.exhausted = false;
     S.hero.shield = 0;
     S.hero.abilityUsed = 0;
@@ -758,9 +813,12 @@ export function resolveReveal(S) {
       log(S, L.sideCrowded, "bad");
       addThreat(S, 2);
     } else {
-      const ss = { uid: "ss" + nuid(S), c: id, threat: e.enter };
+      // RESONANT (Vexahl): every side scheme enters with 1 extra doom
+      const extra = villainKeyword(S) === "resonant" ? 1 : 0;
+      const ss = { uid: "ss" + nuid(S), c: id, threat: e.enter + extra };
       S.sideSchemes.push(ss);
-      log(S, t(L.sideSpawn, { t: e.name, n: e.enter }), "bad");
+      log(S, t(L.sideSpawn, { t: e.name, n: ss.threat }), "bad");
+      if (extra) log(S, L.resonant, "bad");
       fx(S, { kind: "spawn", at: "side:" + ss.uid });
     }
   } else if (e.type === "attachment") {
@@ -779,7 +837,7 @@ export function resolveReveal(S) {
         log(S, t(L.silvered, { ally: CARDS[a.c].name }), "bad");
       } else addThreat(S, 2);
     }
-    if (f.villainAttack && !S.over) queueAttack(S, { kind: "villain" });
+    if (f.villainAttack && !S.over) forcedVillainAttack(S);
     if (f.discardRandom) discardRandom(S, f.discardRandom);
     if (f.healVillain) healVillain(S, f.healVillain);
     if (f.exhaustHero) {
@@ -831,10 +889,17 @@ export function applyDefense(S, choice) {
     const a = S.allies.find((x) => x.uid === choice.uid);
     if (a && !a.exhausted) {
       a.exhausted = true;
+      const hpBefore = a.hp;
       log(S, t(L.allyBlock, { ally: CARDS[a.c].name }), "you");
       fx(S, { kind: "block" });
       dmgAlly(S, choice.uid, total);
       dealt = total;
+      // OVERWHELM (Morvane): excess damage (capped at 1) through a destroyed blocker
+      const excess = Math.min(1, total - hpBefore);
+      if (!S.over && excess > 0 && p.attacker.kind === "villain" && villainKeyword(S) === "overwhelm") {
+        log(S, t(L.overwhelm, { n: excess }), "bad");
+        dmgHero(S, excess);
+      }
     } else {
       log(S, t(L.take, { hero: H.name, n: total }), "bad");
       dmgHero(S, total);

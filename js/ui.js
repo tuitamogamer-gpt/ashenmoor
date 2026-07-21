@@ -1410,7 +1410,7 @@ function render() {
     <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-act="side-scheme" data-prev="e:${ss.c}" data-fx="side:${ss.uid}" role="button" ${mode === "target" ? 'tabindex="0"' : 'tabindex="-1"'} aria-label="${esc(`${e.name}, ${ss.threat} doom`)}">
       <div class="c-art"><img src="${artPath(ss.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
-      <div class="ss-threat">&#9670; <b>${ss.threat}</b></div>
+      <div class="ss-threat ${e.burst && ss.threat >= e.burst.at - 2 ? "near-burst" : ""}">&#9670; <b>${ss.threat}</b>${e.burst ? `<span class="burst-at" data-tip="${esc(STR.tips.burst)}">/${e.burst.at}&#128165;</span>` : ""}</div>
       ${e.crisis ? `<div class="kw crisis-kw" data-tip="${esc(STR.tips.crisis)}">&#128274; CRISIS</div>` : ""}
     </div>`;
   }).join("");
@@ -1502,6 +1502,7 @@ function render() {
         ${S.villain.stun > 0 ? `<div class="vchip stun">&#9889;${S.villain.stun}</div>` : ""}
         ${S.villain.burn > 0 ? `<div class="vchip burn">&#128293;${S.villain.burn}</div>` : ""}
         <div class="c-name">${st.title}</div>
+        ${VILLAINS[S.villainId].keyword ? `<div class="vkeyword" data-tip="${esc(VILLAINS[S.villainId].keyword.text)}">&#128081; ${VILLAINS[S.villainId].keyword.name}</div>` : ""}
         <div class="c-stats">
           ${statChip("&#9876;", E.villainAtkVal(S))}${statChip("&#9737;", E.villainSchVal(S))}
         </div>
@@ -1768,6 +1769,12 @@ function drainFx() {
       case "stunfx": sfx.shield(); floatText(anchorEl("villain"), "STUNNED", "shieldf"); VFX.burstAt(anchorEl("villain"), "teal", 18); break;
       case "burnfx": sfx.attack(); floatText(anchorEl("villain"), "BURN", "dmg"); VFX.burstAt(anchorEl("villain"), "spark", 14); break;
       case "sideClear": sfx.rally(); VFX.wave(innerWidth / 2, innerHeight / 3, "#3fc9b6", 170); VFX.burst("teal", innerWidth / 2, innerHeight / 3, 24, 1.4); break;
+      case "burst":
+        sfx.nova();
+        shake($(".game"), true);
+        VFX.waveAt(anchor || anchorEl("scheme"), "#c9563f", 200);
+        VFX.burstAt(anchor || anchorEl("scheme"), "spark", 30, 1.6);
+        break;
       case "loom": {
         const v = anchorEl("villain");
         if (v) { v.classList.add("looming"); setTimeout(() => v.classList.remove("looming"), 950); }

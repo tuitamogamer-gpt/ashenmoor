@@ -259,15 +259,15 @@ export const CARDS = {
   // ---- Odran (aegis) ----
   shield_wall: {
     name: "Shield Wall", type: "event", cost: 1, faction: "odran",
-    text: "Gain 2 shield. Draw 1 card.",
+    text: "Gain 3 shield. Draw 1 card.",
     flavor: "Stone breaks. The Watch does not.",
-    effect: { shield: 2, draw: 1 },
+    effect: { shield: 3, draw: 1 },
   },
   verdict: {
     name: "Verdict", type: "event", cost: 2, faction: "odran",
-    text: "Deal 3 damage to an enemy. Gain 2 shield.",
+    text: "Deal 4 damage to an enemy. Gain 2 shield.",
     flavor: "Judgment, delivered in gold.",
-    effect: { dmg: 3, target: "enemy", shield: 2 },
+    effect: { dmg: 4, target: "enemy", shield: 2 },
   },
   rally_the_watch: {
     name: "Rally the Watch", type: "event", cost: 2, faction: "odran",
@@ -548,29 +548,33 @@ export const ENCOUNTERS = {
   },
   // ---- side schemes (v1.3) ----
   ritual_of_the_crown: {
-    name: "Ritual of the Crown", type: "sidescheme", enter: 3, boost: 1,
-    text: "Enters with 3 doom. While in play: the villain's ATTACK +1. Severed: draw 2 cards.",
+    name: "Ritual of the Crown", type: "sidescheme", enter: 3, boost: 1, grow: 1,
+    burst: { at: 8, villainAttack: true },
+    text: "Enters with 3 doom, grows 1 every second villain phase. While in play: the villain's ATTACK +1. At 8 it BURSTS: the villain attacks immediately. Severed: draw 2 cards.",
     flavor: "The crown remembers how to be worn.",
     ongoing: "villainAtk1",
     clear: { draw: 2 },
   },
   harvest_of_souls: {
-    name: "Harvest of Souls", type: "sidescheme", enter: 2, boost: 1,
-    text: "Enters with 2 doom. While in play: minions' ATTACK +1. Severed: your hero heals 2.",
+    name: "Harvest of Souls", type: "sidescheme", enter: 2, boost: 1, grow: 1,
+    burst: { at: 7, spawn: "void_cultist" },
+    text: "Enters with 2 doom, grows 1 every second villain phase. While in play: minions' ATTACK +1. At 7 it BURSTS: a Void Cultist spawns. Severed: your hero heals 2.",
     flavor: "The city sleeps lighter every night.",
     ongoing: "minionAtk1",
     clear: { heal: 2 },
   },
   the_great_chant: {
-    name: "The Great Chant", type: "sidescheme", enter: 3, boost: 2,
-    text: "Enters with 3 doom. While in play: Doom spreads +1 each round. Severed: remove 2 doom from the main scheme.",
+    name: "The Great Chant", type: "sidescheme", enter: 3, boost: 2, grow: 1,
+    burst: { at: 8, threat: 3 },
+    text: "Enters with 3 doom, grows 1 every second villain phase. While in play: Doom spreads +1 each round. At 8 it BURSTS: 3 doom land on the agenda. Severed: remove 2 doom from the main scheme.",
     flavor: "One voice is a prayer. Ten thousand are a verdict.",
     ongoing: "doomPlus1",
     clear: { mainThwart: 2 },
   },
   tithe_of_whispers: {
-    name: "Tithe of Whispers", type: "sidescheme", enter: 2, boost: 1,
-    text: "Enters with 2 doom. While in play: you refill your hand to 1 less. Severed: draw 2 cards.",
+    name: "Tithe of Whispers", type: "sidescheme", enter: 2, boost: 1, grow: 1,
+    burst: { at: 7, discardRandom: 2 },
+    text: "Enters with 2 doom, grows 1 every second villain phase. While in play: you refill your hand to 1 less. At 7 it BURSTS: 2 random cards are torn from your hand. Severed: draw 2 cards.",
     flavor: "Every secret paid is a door unlocked.",
     ongoing: "handMinus1",
     clear: { draw: 2 },
@@ -647,14 +651,16 @@ export const ENCOUNTERS = {
   },
   // ---- crisis side schemes (v1.7) — they shield the agenda ----
   rite_of_binding: {
-    name: "Rite of Binding", type: "sidescheme", enter: 3, boost: 1, crisis: true,
-    text: "CRISIS — while this is in play, doom cannot be removed from the agenda. Severed: draw 1 card.",
+    name: "Rite of Binding", type: "sidescheme", enter: 3, boost: 1, crisis: true, grow: 1,
+    burst: { at: 8, healVillain: 3, threat: 1 },
+    text: "CRISIS — while this is in play, doom cannot be removed from the agenda. Grows 1 every second villain phase; at 8 it BURSTS: the villain heals 3 and places 1 doom. Severed: draw 1 card.",
     flavor: "They chained the wound shut with your name.",
     clear: { draw: 1 },
   },
   veil_of_despair: {
-    name: "Veil of Despair", type: "sidescheme", enter: 2, boost: 2, crisis: true,
-    text: "CRISIS — while this is in play, doom cannot be removed from the agenda. Severed: your hero heals 2.",
+    name: "Veil of Despair", type: "sidescheme", enter: 2, boost: 2, crisis: true, grow: 1,
+    burst: { at: 7, directDmg: 2 },
+    text: "CRISIS — while this is in play, doom cannot be removed from the agenda. Grows 1 every second villain phase; at 7 it BURSTS: you take 2 damage. Severed: your hero heals 2.",
     flavor: "Grief settles like ash. It does not melt.",
     clear: { heal: 2 },
   },
@@ -668,6 +674,8 @@ export const VILLAINS = {
     art: "villain_morvane",
     epithet: "The Hollow King",
     hint: "Alternates ATTACK and SCHEME. Hits like a falling crown.",
+    keyword: { id: "overwhelm", name: "OVERWHELM",
+      text: "When his attack destroys your blocking ally, 1 point of the excess damage carries through to your hero." },
     intentPattern: "alternate",
     agenda: {
       name: "The Hollowing",
@@ -713,6 +721,8 @@ export const VILLAINS = {
     art: "hero_vexahl",
     epithet: "Voice of the Spire",
     hint: "Schemes relentlessly — strikes on every third bell.",
+    keyword: { id: "resonant", name: "RESONANT",
+      text: "Every side scheme enters play with 1 additional doom on it." },
     intentPattern: "thirdBell",
     agenda: {
       name: "The Toll of Bells",
@@ -758,6 +768,8 @@ export const VILLAINS = {
     art: "hero_nul",
     epithet: "The Spire-Heart",
     hint: "The source of it all. Everything, at once, faster.",
+    keyword: { id: "surging", name: "SURGING",
+      text: "His attack boosts are never less than \u25c6 1 — every strike carries hidden power." },
     intentPattern: "alternate",
     agenda: {
       name: "The Spire Consumes",
@@ -808,6 +820,8 @@ export const VILLAINS = {
     art: "villain_oszra",
     epithet: "The Gravebloom",
     hint: "Her dead keep coming back. Kill them a second time — or don't kill them at all.",
+    keyword: { id: "mournful", name: "MOURNFUL",
+      text: "The first of her minions to die each round places 1 doom on her fullest side scheme (if any is in play)." },
     intentPattern: "alternate",
     agenda: {
       name: "The Garden of Bone",

@@ -1433,3 +1433,8 @@ body.coop .logpanel { top: 46px; }
 .vchip { cursor: help; }
 .agenda-chips { cursor: help; }
 .vchip[data-tip] { position: absolute; } /* data-tip's position:relative must not unseat corner chips */
+
+/* v2.3.1: horizontal swipe pickers must never be squashed by the menu's
+   column flex (their overflow-x:auto zeroes the automatic min-height) —
+   the menu itself scrolls instead */
+.menu .hero-pick, .menu .villain-pick { flex-shrink: 0; }

@@ -33,8 +33,8 @@ export const villainAtkVal = (S) =>
 export const villainSchVal = (S) =>
   stage(S).sch + agendaMod(S, "sch") +
   S.villain.attachments.reduce((n, id) => n + ((ENCOUNTERS[id].mod || {}).sch || 0), 0);
-export const doomPerRound = (S) => CONFIG.doomPerRound + (hasOngoing(S, "doomPlus1") ? 1 : 0) + agendaMod(S, "doomPerRound");
-export const schemeThreshold = (S) => agendaStage(S).th[S.difficulty];
+export const doomPerRound = (S) => CONFIG.doomPerRound + (hasOngoing(S, "doomPlus1") ? 1 : 0) + agendaMod(S, "doomPerRound") + modOf(S, "doomPerRound");
+export const schemeThreshold = (S) => Math.max(4, agendaStage(S).th[S.difficulty] + modOf(S, "threshold"));
 const agendaProgress = (S) => agendaDef(S).stages
   .slice(0, S.scheme.stage)
   .reduce((n, st) => n + st.th[S.difficulty], S.scheme.threat);
@@ -62,7 +62,9 @@ export function doomForecast(S) {
   const advances = lethal || projected.scheme.stage > S.scheme.stage;
   return { active: true, spread, scheme, effects, total, remaining, advances, lethal };
 }
-const stageHp = (S, i) => villainDef(S).stages[i].hp + CONFIG.difficulty[S.difficulty].villainHpBonus;
+const stageHp = (S, i) => villainDef(S).stages[i].hp + CONFIG.difficulty[S.difficulty].villainHpBonus + modOf(S, "villainHp");
+const modOf = (S, k) => (S.mods && S.mods[k]) || 0;
+export const handSizeOf = (S) => Math.max(1, HEROES[S.heroId].handSize + modOf(S, "handSize"));
 export const intentFor = (S, round) =>
   villainDef(S).intentPattern === "thirdBell"
     ? (round % 3 === 0 ? "attack" : "scheme")
@@ -94,18 +96,31 @@ export function newGame(heroId, villainId = "morvane", difficulty = "normal", se
     sideSchemes: [],
     enc: { deck: [], discard: [] },
     minions: [],
+    mods: { villainHp: 0, doomPerRound: 0, handSize: 0, threshold: 0 },
+    complications: Array.isArray(opts.complications) ? opts.complications : [],
     villainSealed: false, mulliganed: false, firstCardPlayed: false,
     vp: { queue: [], pending: null, revealed: null, agenda: null },
     fx: [], log: [], over: null,
     stats: { rounds: 1, dmgDealt: 0, threatRemoved: 0, cardsPlayed: 0, alliesLost: 0 },
   };
+  if (opts.mods) Object.assign(S.mods, opts.mods);
   S.villain.hp = stageHp(S, 0);
   S.intent = intentFor(S, 1);
   S.deck = shuffle(S, opts.deck && opts.deck.length ? opts.deck : H.deck);
   S.enc.deck = shuffle(S, villainDef(S).encDeck);
   if (opts.startDoom) S.scheme.threat = Math.min(opts.startDoom, schemeThreshold(S) - 1);
-  draw(S, H.handSize + Math.max(0, opts.openingHandBonus || 0));
+  draw(S, handSizeOf(S) + Math.max(0, opts.openingHandBonus || 0));
   log(S, t(L.gameStart, { hero: H.name, villain: stage(S).title }), "sys");
+  if (opts.startAttachment && ENCOUNTERS[opts.startAttachment]) {
+    // take the copy OUT of the encounter deck — otherwise it can be revealed
+    // again later and stack a second time
+    const i = S.enc.deck.indexOf(opts.startAttachment);
+    if (i >= 0) S.enc.deck.splice(i, 1);
+    S.villain.attachments.push(opts.startAttachment);
+    log(S, t(L.attachment, { t: ENCOUNTERS[opts.startAttachment].name }), "bad");
+  }
+  if (opts.startMinion && ENCOUNTERS[opts.startMinion]) spawnMinion(S, opts.startMinion);
+  S.fx.length = 0; // setup happens before the board exists — no animations to replay
   return S;
 }
 
@@ -523,6 +538,12 @@ export function playCard(S, uid, payUids = [], targetId = null) {
   const card = CARDS[h.c];
   if (card.type === "resource") return A.resourceOnly;
   if (card.type === "ally" && S.allies.length >= CONFIG.allyLimit) return A.allyLimit;
+  if (card.type === "upgrade") {
+    if (S.upgrades.some((u) => u.c === h.c)) return A.upgradeUnique;
+    if (card.slot && S.upgrades.some((u) => CARDS[u.c].slot === card.slot)) {
+      return t(A.slotTaken, { slot: (STR.slots[card.slot] || card.slot).toUpperCase() });
+    }
+  }
   if (card.effect && card.effect.banish && S.minions.length === 0) return A.needMinion;
   const cost = effCost(S, card);
   const paySet = [...new Set(payUids)].filter((p) => p !== uid && handCard(S, p));
@@ -804,8 +825,7 @@ export function stepVillain(S) {
     S.round++;
     S.stats.rounds = S.round;
     S.intent = intentFor(S, S.round);
-    const H = HEROES[S.heroId];
-    const refill = H.handSize - (hasOngoing(S, "handMinus1") ? 1 : 0);
+    const refill = handSizeOf(S) - (hasOngoing(S, "handMinus1") ? 1 : 0);
     draw(S, Math.max(0, refill - S.hand.length));
     S.phase = "player";
     fx(S, { kind: "turn" });

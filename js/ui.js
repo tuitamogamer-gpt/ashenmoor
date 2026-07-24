@@ -327,6 +327,15 @@ function renderCampaignHub() {
   const c = CAMP.load();
   if (!c) { renderMenu(); return; }
   S = null;
+  // a reload mid-reward must not cost the player their spoils
+  if (c.pending && !CAMP.isComplete(c)) {
+    document.body.className = "on-menu";
+    stopDrone(); stopMusic();
+    app().innerHTML = `<div class="menu camp-hub"><h1 class="title small">${STR.campaign.title}</h1></div>`;
+    if (c.pending === "cross") { crossroadsModal(c); return; }
+    if (c.pending === "draft") { draftModal(c); return; }
+    if (c.pending === "trim") { trimModal(c); return; }
+  }
   stopDrone(); stopMusic(); VFX.setIntensity(1);
   document.body.className = "on-menu";
   const H = HEROES[c.heroId];
@@ -358,6 +367,12 @@ function renderCampaignHub() {
           ${c.resolve ? `<div class="camp-note good">${tpl(STR.campaign.resolve, { n: c.resolve })}</div>` : ""}
           <div class="camp-note">${c.deck.length} ${STR.campaign.deckLabel} · ${c.difficulty}</div>
         </div>
+        <div class="camp-comps">
+          <div class="camp-comps-title">${STR.campaign.complicationsTitle}</div>
+          ${CAMP.activeComplications(c).length
+            ? CAMP.activeComplications(c).map((k) => `<div class="comp-row"><b>${esc(k.name)}</b><span>${esc(k.text)}</span></div>`).join("")
+            : `<div class="comp-row none">${STR.campaign.complicationsNone}</div>`}
+        </div>
       </div>
     </div>
     <div class="menu-btns">
@@ -372,10 +387,7 @@ function renderCampaignHub() {
 function startCampaignGame() {
   const c = CAMP.load();
   if (!c || CAMP.isComplete(c)) { renderMenu(); return; }
-  S = E.newGame(c.heroId, CAMP.ACTS[c.act], c.difficulty, String(Date.now()) + Math.random().toString(36).slice(2), {
-    deck: c.deck, maxHpMod: -c.scars, startDoom: c.extraDoom,
-    startShield: c.resolve || 0, openingHandBonus: c.resolve || 0, isCampaign: true,
-  });
+  S = E.newGame(c.heroId, CAMP.ACTS[c.act], c.difficulty, String(Date.now()) + Math.random().toString(36).slice(2), CAMP.actOpts(c));
   startDrone(); startMusic(); setMusicStage(0); VFX.setIntensity(1);
   resetModes();
   document.body.className = "in-game";
@@ -385,13 +397,36 @@ function startCampaignGame() {
   showMulligan();
 }
 
+function crossroadsModal(c) {
+  const opts = CAMP.crossroadsOptions(c);
+  if (!opts.length) { CAMP.setPending(c, "draft"); draftModal(c); return; }
+  const el = document.createElement("div");
+  el.className = "modal crossroads";
+  el.innerHTML = `
+    <div class="modal-box wide">
+      <h3>${STR.campaign.crossTitle}</h3>
+      <p class="modal-sub">${STR.campaign.crossText}</p>
+      <div class="cross-row">
+        ${opts.map((o) => `
+          <div class="cross-card">
+            <div class="cross-name">${esc(o.name)}</div>
+            <div class="cross-line good"><b>${STR.campaign.crossBoon}:</b> ${esc(o.boon)}</div>
+            <div class="cross-line bad"><b>${STR.campaign.crossCost}:</b> ${esc(o.cost)}</div>
+            <button class="btn primary" data-act="cross-pick" data-id="${o.id}">${STR.campaign.crossTake}</button>
+          </div>`).join("")}
+      </div>
+    </div>`;
+  $("#overlays").appendChild(el);
+  sfx.stage();
+}
+
 function draftModal(c) {
   const opts = CAMP.draftOptions(c);
   const el = document.createElement("div");
   el.className = "modal draft";
   el.innerHTML = `
     <div class="modal-box wide">
-      <h3>${STR.campaign.draftTitle}</h3>
+      <h3>${STR.campaign.draftTitle}${c.bonusDraft > 0 ? ` <span class="cross-tag">+${c.bonusDraft}</span>` : ""}</h3>
       <p>${STR.campaign.draftText}</p>
       <div class="mull-row">
         ${opts.map((cid) => `<button type="button" class="mcard draft-c" data-act="draft-pick" data-id="${cid}" aria-label="Add ${esc(CARDS[cid].name)} to the campaign deck">${playerCardHTML(cid)}</button>`).join("")}
@@ -410,7 +445,7 @@ function trimModal(c) {
   el.className = "modal trim";
   el.innerHTML = `
     <div class="modal-box wide">
-      <h3>${STR.campaign.removeTitle}</h3>
+      <h3>${STR.campaign.removeTitle}${c.bonusTrim > 0 ? ` <span class="cross-tag">+${c.bonusTrim}</span>` : ""}</h3>
       <p>${STR.campaign.removeText}</p>
       <div class="mull-row trim-row">
         ${Object.entries(counts).map(([cid, n]) => `
@@ -639,7 +674,7 @@ function onClick(e) {
       if (!c || !S) { renderMenu(); return; }
       CAMP.applyWin(c, S);
       if (CAMP.isComplete(c)) { setPrefs({ crowned: true }); epilogue(true, c); }
-      else draftModal(c);
+      else crossroadsModal(c);
     },
     "camp-retry": () => {
       $(".modal.end")?.remove();
@@ -656,15 +691,33 @@ function onClick(e) {
       const c = CAMP.load();
       if (c && id) { CAMP.addCard(c, id); sfx.rally(); }
       $(".modal.draft")?.remove();
-      if (c) trimModal(c);
+      if (!c) return;
+      if (c.bonusDraft > 0) { c.bonusDraft--; CAMP.save(c); draftModal(c); return; }
+      CAMP.setPending(c, "trim");
+      trimModal(c);
     },
     "trim-pick": () => {
       const c = CAMP.load();
       if (c && id) { CAMP.removeCard(c, id); sfx.click(); }
       $(".modal.trim")?.remove();
+      if (c && c.bonusTrim > 0 && CAMP.canRemove(c)) { c.bonusTrim--; CAMP.save(c); trimModal(c); return; }
+      if (c) CAMP.setPending(c, null);
       renderCampaignHub();
     },
-    "trim-skip": () => { $(".modal.trim")?.remove(); renderCampaignHub(); },
+    "trim-skip": () => {
+      $(".modal.trim")?.remove();
+      const c = CAMP.load();
+      if (c) CAMP.setPending(c, null);
+      renderCampaignHub();
+    },
+    "cross-pick": () => {
+      $(".modal.crossroads")?.remove();
+      const c = CAMP.load();
+      if (!c) { renderMenu(); return; }
+      CAMP.applyCrossroads(c, id);
+      sfx.rally();
+      draftModal(c);
+    },
     "ep-close": () => { $(".modal.ep")?.remove(); renderMenu(); },
   }[actName];
   if (H) H();
@@ -707,6 +760,13 @@ function beginPlay(uid) {
   if (card.type === "resource") { toast(STR.actions.resourceOnly); sfx.deny(); return; }
   if (card.type === "ally" && S.allies.length >= CONFIG.allyLimit) { toast(STR.actions.allyLimit); sfx.deny(); return; }
   if (card.effect && card.effect.banish && S.minions.length === 0) { toast(STR.actions.needMinion); sfx.deny(); return; }
+  if (card.type === "upgrade") {
+    if (S.upgrades.some((u) => u.c === h.c)) { toast(STR.actions.upgradeUnique); sfx.deny(); return; }
+    if (card.slot && S.upgrades.some((u) => CARDS[u.c].slot === card.slot)) {
+      toast(tpl(STR.actions.slotTaken, { slot: (STR.slots[card.slot] || card.slot).toUpperCase() }));
+      sfx.deny(); return;
+    }
+  }
   const cost = E.effCost(S, card);
   if (cost > 0) {
     const auto = E.autoPay(S, uid);
@@ -1284,7 +1344,10 @@ function onInput(e) {
 }
 
 function closeTopModal() {
-  const m = [...document.querySelectorAll(".modal")].filter((x) => !x.classList.contains("defense") && !x.classList.contains("end")).pop();
+  // mandatory steps have no "cancel": dismissing them would strand the player
+  // on a finished board with the only path forward gone
+  const MANDATORY = ["defense", "end", "crossroads", "draft", "trim"];
+  const m = [...document.querySelectorAll(".modal")].filter((x) => !MANDATORY.some((c) => x.classList.contains(c))).pop();
   if (!m) return;
   if (m.classList.contains("confirm-modal")) confirmAction = null;
   // reveal/agenda modals gate an awaited promise in runVillain — Escape must
@@ -1470,6 +1533,8 @@ function render() {
     const payPool = S.hand.filter((x) => x.uid !== h.uid).reduce((n, x) => n + E.resValue(x.c), 0);
     const canplay = E.canAct(S) && mode === "idle" && !running && c.type !== "resource" && cost <= payPool
       && !(c.type === "ally" && S.allies.length >= CONFIG.allyLimit)
+      && !(c.type === "upgrade" && (S.upgrades.some((u) => u.c === h.c)
+        || (c.slot && S.upgrades.some((u) => CARDS[u.c].slot === c.slot))))
       && !(c.effect && c.effect.banish && S.minions.length === 0);
     return `
     <button type="button" class="card hcard ${staged ? "staged" : ""} ${chosen ? "pay-chosen" : ""} ${selected ? "selected" : ""} ${canplay ? "canplay" : ""}"
@@ -1520,6 +1585,7 @@ function render() {
   <div class="game ${$(".game")?.classList.contains("show-log") ? "show-log" : ""} ${mode === "target" ? "targeting" : ""} ${S.villain.stage >= VILLAINS[S.villainId].stages.length - 1 ? "enrage" : ""} ${S.hero.hp <= 3 ? "lowhp" : ""}">
     <header class="topbar">
       <button class="btn small" data-act="menu">${STR.hud.menu}</button>
+      ${(S.complications || []).length ? `<div class="comp-pill" data-tip="${esc(S.complications.map((k) => `${k.name} — ${k.text}`).join(" \u2022 "))}">&#9888; ${S.complications.length}</div>` : ""}
       <div class="round-pill">${S.dailyId ? `<span class="daily-tag">${STR.menu.daily}</span> · ` : ""}${STR.hud.round} <b>${S.round}</b> · ${STR.hud.intent}: <b class="int-${S.intent}" data-tip="${esc(STR.tips.intent)}">${intentTxt}</b></div>
       <div class="top-right">
         <button class="btn small" data-act="restart">${STR.hud.restart}</button>
@@ -1668,8 +1734,15 @@ function renderInspector() {
     inner = playerCardHTML(cid, { cost: E.effCost(S, CARDS[cid]) });
     flavor = CARDS[cid].flavor || "";
     if (sel && sel.kind === "hand" && mode === "idle" && E.canAct(S)) {
-      const c = CARDS[E.handCard(S, sel.uid)?.c || ""] || null;
-      if (c && c.type !== "resource")
+      const hc = E.handCard(S, sel.uid);
+      const c = CARDS[hc?.c || ""] || null;
+      const blocked = c && c.type === "upgrade" && (S.upgrades.some((u) => u.c === hc.c)
+        || (c.slot && S.upgrades.some((u) => CARDS[u.c].slot === c.slot)));
+      if (blocked) {
+        actions = `<span class="note">${S.upgrades.some((u) => u.c === hc.c)
+          ? STR.actions.upgradeUnique
+          : tpl(STR.actions.slotTaken, { slot: (STR.slots[c.slot] || c.slot).toUpperCase() })}</span>`;
+      } else if (c && c.type !== "resource")
         actions = `<button class="btn primary" data-act="play" data-uid="${sel.uid}">${STR.actions.play} (${E.effCost(S, c)})</button>`;
       else if (c) actions = `<span class="note">${STR.actions.resourceOnly}</span>`;
     }

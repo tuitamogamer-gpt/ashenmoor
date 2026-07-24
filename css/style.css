@@ -1438,3 +1438,48 @@ body.coop .logpanel { top: 46px; }
    column flex (their overflow-x:auto zeroes the automatic min-height) —
    the menu itself scrolls instead */
 .menu .hero-pick, .menu .villain-pick { flex-shrink: 0; }
+
+/* ---------- v2.4 The Long Dark: upgrade slots, complications, crossroads ---------- */
+.camp-comps {
+  margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+  background: #2a161acc; border: 1px solid #6d3630; text-align: left;
+}
+.camp-comps-title {
+  font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: #e8917f; margin-bottom: 6px;
+}
+.comp-row { font-size: 12px; line-height: 1.45; color: #e4d8d5; padding: 3px 0; }
+.comp-row b { color: #ffb3a0; display: block; font-size: 12.5px; }
+.comp-row.none { color: var(--dim); font-style: italic; }
+.comp-pill {
+  background: #3a1a17; border: 1px solid #c9563f; color: #ff9c86;
+  border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: help; white-space: nowrap;
+}
+.modal.crossroads .modal-box { border-color: var(--gold); }
+.modal-sub { color: var(--dim); font-size: 13px; margin-bottom: 14px; }
+.cross-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.cross-card {
+  width: min(320px, 92vw); text-align: left; padding: 14px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cross-card:hover { border-color: var(--gold); }
+.cross-name { font-family: var(--serif); font-size: 18px; color: #ffe9c2; }
+.cross-line { font-size: 12.5px; line-height: 1.5; }
+.cross-line.good { color: #9fe6c4; }
+.cross-line.bad { color: #ff9c86; }
+.cross-line b { opacity: .8; }
+.cross-card .btn { margin-top: auto; }
+.cross-tag {
+  font-size: 12px; color: var(--gold); border: 1px solid var(--gold);
+  border-radius: 10px; padding: 1px 7px; vertical-align: middle;
+}
+.c-slot {
+  font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #c9a45c; border: 1px solid #6b5730; border-radius: 5px;
+  padding: 0 4px; margin-left: 4px;
+}
+@media (max-width: 560px) {
+  .cross-card { width: 100%; }
+  .comp-pill { font-size: 11px; padding: 2px 8px; }
+}

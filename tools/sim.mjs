@@ -109,7 +109,11 @@ function evalCard(S, h) {
       target = thwartTarget(S); // enter.thwart needs a scheme target when side schemes exist
     return { score: 70, target };
   }
-  if (card.type === "upgrade") return { score: 60, target: null };
+  if (card.type === "upgrade") {
+    if (S.upgrades.some((u) => u.c === h.c)) return null;                       // unique in play
+    if (card.slot && S.upgrades.some((u) => CARDS[u.c].slot === card.slot)) return null; // slot taken
+    return { score: 60, target: null };
+  }
 
   // events
   const ef = card.effect || {};
@@ -400,12 +404,7 @@ export function playCampaign(heroId, difficulty, seed) {
     const villainId = CAMP.ACTS[c.act];
     const result = playGame(heroId, villainId, `${seed}-act${c.act}-try${guard}`, false, {
       difficulty,
-      isCampaign: true,
-      deck: c.deck,
-      maxHpMod: -c.scars,
-      startDoom: c.extraDoom,
-      startShield: c.resolve || 0,
-      openingHandBonus: c.resolve || 0,
+      ...CAMP.actOpts(c),
     });
     attempts.push({
       act: c.act,
@@ -417,13 +416,21 @@ export function playCampaign(heroId, difficulty, seed) {
     });
     if (result.stalled) break;
     if (result.win) {
-      CAMP.applyWin(c, result.state);
+      CAMP.applyWin(c, result.state, random);
       if (!CAMP.isComplete(c)) {
-        const options = CAMP.draftOptions(c, random);
-        const pick = options.sort((a, b) => draftScore(heroId, b) - draftScore(heroId, a))[0];
-        if (pick) CAMP.addCard(c, pick);
-        const trim = trimCandidate(c);
-        if (trim) CAMP.removeCard(c, trim);
+        // the Crossroads is mandatory: take a road, pay its price
+        const roads = CAMP.crossroadsOptions(c, random);
+        if (roads.length) CAMP.applyCrossroads(c, roads[Math.floor(random() * roads.length)].id, random);
+        for (let d = 0; d <= (c.bonusDraft || 0); d++) {
+          const options = CAMP.draftOptions(c, random);
+          const pick = options.sort((a, b) => draftScore(heroId, b) - draftScore(heroId, a))[0];
+          if (pick) CAMP.addCard(c, pick);
+        }
+        for (let t = 0; t <= (c.bonusTrim || 0); t++) {
+          const trim = trimCandidate(c);
+          if (trim) CAMP.removeCard(c, trim);
+        }
+        c.bonusDraft = 0; c.bonusTrim = 0; CAMP.setPending(c, null);
       }
     } else {
       CAMP.applyLoss(c, result.state);

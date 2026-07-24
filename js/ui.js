@@ -8,7 +8,7 @@ import * as E from "./engine.js";
 import * as CAMP from "./campaign.js";
 import { sfx, setMuted, isMuted, setVolumes, floatText, shake, banner, startDrone, stopDrone, startMusic, stopMusic, setMusicStage } from "./fx.js";
 import * as VFX from "./vfx.js";
-import { ICON } from "./icons.js";
+import { ICON, abilityIcon } from "./icons.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = () => $("#app");
@@ -1548,7 +1548,7 @@ function render() {
     <div class="hero-actions">
       <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}" ${S.hero.exhausted ? "disabled" : ""}>${ICON.atk} ${STR.actions.attack} ${E.heroAtk(S)}</button>
       <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}" ${S.hero.exhausted ? "disabled" : ""}>${ICON.thw} ${STR.actions.thwart} ${E.heroThw(S)}</button>
-      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}" ${S.hero.abilityUsed >= E.abilityLimit(S) ? "disabled" : ""}>&#10038; ${H.ability.name}</button>
+      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}" ${S.hero.abilityUsed >= E.abilityLimit(S) ? "disabled" : ""}>${abilityIcon(H.ability.kind)} ${H.ability.name}</button>
     </div>` : "";
 
   // condensed mana tracker, LEFT side by the hero: shows the hand's resource

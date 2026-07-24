@@ -90,7 +90,7 @@ button { font-family: inherit; }
   cursor: pointer;
   transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
-.pick img { width: 100%; height: 240px; object-fit: cover; object-position: top; display: block; }
+.pick > img { width: 100%; height: 240px; object-fit: cover; object-position: top; display: block; }
 .pick:hover { transform: translateY(-4px); }
 .pick.picked { border-color: var(--acc, var(--teal)); box-shadow: 0 0 26px rgba(63, 201, 182, 0.25); }
 .pick .pick-name { font-family: var(--serif); font-size: 21px; padding: 10px 12px 0; }
@@ -743,7 +743,7 @@ button { font-family: inherit; }
   .side { flex-direction: row; width: 100%; justify-content: center; }
   .endturn { height: 44px; }
   .menu { justify-content: flex-start; }
-  .pick img { height: 170px; }
+  .pick > img { height: 170px; }
   .minions { order: 4; }
 }
 @media (max-width: 980px) and (orientation: portrait) {
@@ -796,7 +796,7 @@ button { font-family: inherit; }
     scrollbar-width: thin;
   }
   .pick { width: 280px; flex: none; scroll-snap-align: center; }
-  .pick img { height: 190px; }
+  .pick > img { height: 190px; }
   .vpick { width: min(330px, 84vw); flex: none; scroll-snap-align: center; }
   .diff-row { flex-wrap: wrap; justify-content: center; }
   .btn, .seg, .mini, .dock-btn { min-height: 44px; }
@@ -980,7 +980,7 @@ button { font-family: inherit; }
 /* compact menu so hero + villain rows fit */
 .menu { gap: 10px; }
 .pick { width: 224px; }
-.pick img { height: 178px; }
+.pick > img { height: 178px; }
 .pick .pick-name { font-size: 19px; }
 .title { font-size: clamp(36px, 6.2vw, 64px); }
 
@@ -1401,7 +1401,7 @@ body.coop .logpanel { top: 46px; }
 /* Final responsive overrides live last so update-specific rules cannot undo them. */
 @media (max-width: 560px) {
   .menu .hero-pick .pick { width: 280px; }
-  .menu .hero-pick .pick img { height: 190px; }
+  .menu .hero-pick .pick > img { height: 190px; }
   .menu .villain-pick .vpick { width: min(330px, 84vw); }
   .dock-row .dock-btn { width: 44px; height: 44px; }
 }
@@ -1425,9 +1425,22 @@ body.coop .logpanel { top: 46px; }
 .villain .vkeyword { pointer-events: auto; } /* the parent card disables child pointer-events — tooltip needs them back */
 
 /* ---------- v2.2 Clarity: svg icons + living tooltips ---------- */
-.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; }
-.bpips .ic { width: 0.85em; height: 0.85em; }
-.burst-at .ic { width: 0.9em; height: 0.9em; }
+/* painted medallions (assets/icons) — round, so the dark jpeg plate reads as
+   the icon itself rather than a square tile */
+.ic {
+  width: 1.32em; height: 1.32em; display: inline-block; vertical-align: -0.32em;
+  border-radius: 50%; object-fit: cover; user-select: none; flex: none;
+  filter: saturate(1.15) contrast(1.12) brightness(1.06);
+  box-shadow: inset 0 0 0 1px #ffffff14;
+}
+.bpips .ic { width: 0.95em; height: 0.95em; vertical-align: -0.2em; }
+.burst-at .ic { width: 1em; height: 1em; vertical-align: -0.22em; }
+.ic-ability { width: 1.35em; height: 1.35em; vertical-align: -0.34em; }
+.stat .ic { margin-right: 1px; }
+.btn .ic, .mini .ic { box-shadow: 0 0 0 1px #0006; }
+.mini .ic { width: 1.3em; height: 1.3em; vertical-align: -0.3em; }
+.pick-stats .ic { width: 1.05em; height: 1.05em; vertical-align: -0.2em; }
+.btn.off .ic, .btn:disabled .ic { filter: grayscale(0.7) brightness(0.7); }
 /* the parent card disables child pointer-events — buffs must stay hoverable */
 .villain .chips .chip, .villain .vchip, .scheme .threat-track, .scheme .agenda-chips { pointer-events: auto; }
 .vchip { cursor: help; }

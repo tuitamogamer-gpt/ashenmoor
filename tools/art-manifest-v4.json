@@ -158,5 +158,53 @@
   "gravekeeper": {
     "historyId": "g1UT5Lf0rDRULaNqVZvF",
     "ratio": "4:3"
+  },
+  "ic_atk": {
+    "historyId": "yWuhwl3QWGxFSfLi1dx8",
+    "ratio": "1:1"
+  },
+  "ic_thw": {
+    "historyId": "klm0XYjWDPO4sU3mIGq7",
+    "ratio": "1:1"
+  },
+  "ic_def": {
+    "historyId": "E3S2qX6saZvOYLiGIh4o",
+    "ratio": "1:1"
+  },
+  "ic_hp": {
+    "historyId": "BJ36eF5a6S40fT0D3yvJ",
+    "ratio": "1:1"
+  },
+  "ic_doom": {
+    "historyId": "DAc2Rj1tT57PrGAOWPqR",
+    "ratio": "1:1"
+  },
+  "ic_sch": {
+    "historyId": "AnDEHmGutVhivMczB0rb",
+    "ratio": "1:1"
+  },
+  "ic_burst": {
+    "historyId": "46Z9LH7zSyFmd2qjlq6V",
+    "ratio": "1:1"
+  },
+  "ic_res": {
+    "historyId": "ZV1Do6IbUbmAAEkaT3ZS",
+    "ratio": "1:1"
+  },
+  "ic_ab_emberheart": {
+    "historyId": "xeULoL9GCSGecLHFg1ne",
+    "ratio": "1:1"
+  },
+  "ic_ab_riftsight": {
+    "historyId": "iv9Svv8lb0NXBsEQ0f4q",
+    "ratio": "1:1"
+  },
+  "ic_ab_aegis": {
+    "historyId": "2kf3RktMPkU75KNHQIDs",
+    "ratio": "1:1"
+  },
+  "ic_ab_wildcall": {
+    "historyId": "hkQ56NwbKKxTlGad8XYj",
+    "ratio": "1:1"
   }
 }

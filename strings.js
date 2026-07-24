@@ -19,7 +19,7 @@ export const STR = {
     stats: "Statistics",
     firstVigil: "Choose a Warden and Nightmare below, or begin immediately with the highlighted pair.",
     mute: "Sound",
-    version: "v2.4 · The Long Dark",
+    version: "v2.5 · Sigils",
   },
   coop: {
     title: "TWIN VIGILS",

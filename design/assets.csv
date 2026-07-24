@@ -89,3 +89,15 @@ mirror_ward,card art (v2.0),image,v2.0 The Wild and the Grave,4:3,STYLE-1,genera
 void_siphon,card art (v2.0),image,v2.0 The Wild and the Grave,4:3,STYLE-1,generate
 oath_of_iron,card art (v2.0),image,v2.0 The Wild and the Grave,4:3,STYLE-1,generate
 gravekeeper,card art (v2.0),image,v2.0 The Wild and the Grave,4:3,STYLE-1,generate
+ic_atk,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_thw,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_def,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_hp,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_doom,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_sch,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_burst,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_res,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_ab_emberheart,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_ab_riftsight,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_ab_aegis,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate
+ic_ab_wildcall,UI icon medallion (v2.5),image,circular carved emblem icon,1:1,STYLE-1,generate

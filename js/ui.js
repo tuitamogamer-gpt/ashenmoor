@@ -277,20 +277,17 @@ function renderMenu() {
   document.body.className = "on-menu";
   app().innerHTML = `
   <div class="menu" style="background-image:linear-gradient(rgba(8,10,14,.55),rgba(8,10,14,.92)),url('${artPath("thumbnail")}')">
-    <h1 class="title ${prefs().crowned ? "crowned" : ""}">${STR.title}</h1>
-    <p class="subtitle">${STR.subtitle}${prefs().crowned ? ` · <span class="crown-mark">&#10038; ${STR.campaign.crowned}</span>` : ""}</p>
-    <div class="menu-btns menu-actions">
-      <div class="selection-summary"><b>${HEROES[menuHero].name}</b> vs <b>${VILLAINS[menuVillain].name}</b> · ${menuDiff}</div>
-      <button class="btn primary" data-act="begin">${STR.menu.start}</button>
-      ${hasSave ? `<button class="btn" data-act="continue">${STR.menu.continue}</button>` : ""}
-      <button class="btn primary vigil-btn" data-act="campaign">${camp ? tpl(STR.campaign.menuContinue, { n: camp.act + 1 }) : STR.campaign.menuNew}</button>
-      <button class="btn" data-act="daily">${dailyLabel}</button>
-      <button class="btn" data-act="stats">${STR.menu.stats}</button>
-      <button class="btn" data-act="howto">${STR.menu.howToPlay}</button>
-      <button class="btn" data-act="settings">${STR.settings.title}</button>
-      <button class="btn" data-act="mute">${STR.menu.mute}: ${isMuted() ? "OFF" : "ON"}</button>
-    </div>
-    <div class="first-vigil">${STR.menu.firstVigil}</div>
+    <nav class="menu-util" aria-label="${esc(STR.menu.options)}">
+      <button class="btn ghost small" data-act="stats">${STR.menu.stats}</button>
+      <button class="btn ghost small" data-act="howto">${STR.menu.howToPlay}</button>
+      <button class="btn ghost small" data-act="settings">${STR.settings.title}</button>
+      <button class="btn ghost small icon" data-act="mute" aria-label="${esc(`${STR.menu.mute}: ${isMuted() ? "OFF" : "ON"}`)}" data-tip="${esc(`${STR.menu.mute}: ${isMuted() ? "OFF" : "ON"}`)}">${isMuted() ? "&#128263;" : "&#128266;"}</button>
+    </nav>
+    <header class="menu-head">
+      <h1 class="title ${prefs().crowned ? "crowned" : ""}">${STR.title}</h1>
+      <p class="subtitle">${STR.subtitle}${prefs().crowned ? ` · <span class="crown-mark">&#10038; ${STR.campaign.crowned}</span>` : ""}</p>
+    </header>
+    <div class="vs-label">${STR.menu.chooseWarden}</div>
     <div class="hero-pick">
       ${Object.values(HEROES).map((h) => `
         <button type="button" class="pick ${menuHero === h.id ? "picked" : ""} f-${h.color}" data-act="choose-hero" data-id="${h.id}" aria-pressed="${menuHero === h.id}" aria-label="${esc(`Choose ${h.name}, ${h.title}`)}">
@@ -317,6 +314,15 @@ function renderMenu() {
       <span>${STR.menu.difficulty}:</span>
       <button class="seg ${menuDiff === "normal" ? "on" : ""}" data-act="diff" data-id="normal" aria-pressed="${menuDiff === "normal"}">${STR.menu.normal}</button>
       <button class="seg ${menuDiff === "nightmare" ? "on" : ""}" data-act="diff" data-id="nightmare" aria-pressed="${menuDiff === "nightmare"}">${STR.menu.nightmare}</button>
+    </div>
+    <div class="menu-cta">
+      <div class="selection-summary"><b>${HEROES[menuHero].name}</b> vs <b>${VILLAINS[menuVillain].name}</b> · ${STR.menu[menuDiff]}</div>
+      <div class="menu-btns menu-actions">
+        <button class="btn primary big" data-act="begin">${STR.menu.start}</button>
+        ${hasSave ? `<button class="btn" data-act="continue">${STR.menu.continue}</button>` : ""}
+        <button class="btn vigil-btn" data-act="campaign">${camp ? tpl(STR.campaign.menuContinue, { n: camp.act + 1 }) : STR.campaign.menuNew}</button>
+        <button class="btn" data-act="daily">${dailyLabel}</button>
+      </div>
     </div>
     <p class="credits">${wins.total ? `${STR.menu.wins}: ${wins.total} · ` : ""}${STR.menu.version} · card art generated with OpenArt (Seedream 4.5)</p>
   </div>`;
@@ -365,7 +371,7 @@ function renderCampaignHub() {
           ${c.scars ? `<div class="camp-note bad">${tpl(STR.campaign.scars, { n: c.scars })}</div>` : ""}
           ${c.extraDoom ? `<div class="camp-note bad">${tpl(STR.campaign.doomCarried, { n: c.extraDoom })}</div>` : ""}
           ${c.resolve ? `<div class="camp-note good">${tpl(STR.campaign.resolve, { n: c.resolve })}</div>` : ""}
-          <div class="camp-note">${c.deck.length} ${STR.campaign.deckLabel} · ${c.difficulty}</div>
+          <div class="camp-note">${c.deck.length} ${STR.campaign.deckLabel} · ${STR.menu[c.difficulty] || c.difficulty}</div>
         </div>
         <div class="camp-comps">
           <div class="camp-comps-title">${STR.campaign.complicationsTitle}</div>
@@ -376,7 +382,7 @@ function renderCampaignHub() {
       </div>
     </div>
     <div class="menu-btns">
-      <button class="btn primary" data-act="camp-begin">${tpl(STR.campaign.begin, { n: c.act + 1 })}</button>
+      <button class="btn primary big" data-act="camp-begin">${tpl(STR.campaign.begin, { n: c.act + 1 })}</button>
       <button class="btn" data-act="camp-deck">${tpl(STR.campaign.viewDeck, { n: c.deck.length })}</button>
       <button class="btn" data-act="camp-back">${STR.campaign.back}</button>
       <button class="btn danger" data-act="camp-abandon">${STR.campaign.abandon}</button>
@@ -1529,7 +1535,8 @@ function render() {
     const selected = sel && sel.kind === "hand" && sel.uid === h.uid;
     const cost = E.effCost(S, c);
     const off = hi - (handN - 1) / 2;
-    const fan = `--fr:${(off * 2.2).toFixed(2)}deg;--fy:${(Math.abs(off) * 5).toFixed(1)}px`;
+    // big hands fan flatter so the outer cards do not dip below the screen
+    const fan = `--fr:${(off * (handN > 5 ? 1.5 : 2.2)).toFixed(2)}deg;--fy:${Math.min(10, Math.abs(off) * 4).toFixed(1)}px`;
     const payPool = S.hand.filter((x) => x.uid !== h.uid).reduce((n, x) => n + E.resValue(x.c), 0);
     const canplay = E.canAct(S) && mode === "idle" && !running && c.type !== "resource" && cost <= payPool
       && !(c.type === "ally" && S.allies.length >= CONFIG.allyLimit)
@@ -1544,12 +1551,17 @@ function render() {
     </button>`;
   }).join("");
 
-  const heroBtns = E.canAct(S) && mode === "idle" && !running ? `
+  // always rendered (disabled while the hero cannot act) so the hero zone
+  // keeps its height through the villain phase instead of jumping
+  const heroIdle = E.canAct(S) && mode === "idle" && !running;
+  const atkOff = !heroIdle || S.hero.exhausted;
+  const abOff = !heroIdle || S.hero.abilityUsed >= E.abilityLimit(S);
+  const heroBtns = `
     <div class="hero-actions">
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}" ${S.hero.exhausted ? "disabled" : ""}>${ICON.atk} ${STR.actions.attack} ${E.heroAtk(S)}</button>
-      <button class="btn small ${S.hero.exhausted ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}" ${S.hero.exhausted ? "disabled" : ""}>${ICON.thw} ${STR.actions.thwart} ${E.heroThw(S)}</button>
-      <button class="btn small ability ${S.hero.abilityUsed >= E.abilityLimit(S) ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}" ${S.hero.abilityUsed >= E.abilityLimit(S) ? "disabled" : ""}>${abilityIcon(H.ability.kind)} ${H.ability.name}</button>
-    </div>` : "";
+      <button class="btn small ${atkOff ? "off" : ""}" data-act="basic-attack" data-tip="${esc(STR.tips.attack)}" ${atkOff ? "disabled" : ""}>${ICON.atk} ${STR.actions.attack} ${E.heroAtk(S)}</button>
+      <button class="btn small ${atkOff ? "off" : ""}" data-act="basic-thwart" data-tip="${esc(STR.tips.disrupt)}" ${atkOff ? "disabled" : ""}>${ICON.thw} ${STR.actions.thwart} ${E.heroThw(S)}</button>
+      <button class="btn small ability ${abOff ? "off" : ""}" data-act="ability" data-tip="${esc(H.ability.name + ": " + H.ability.text)}" ${abOff ? "disabled" : ""}>${abilityIcon(H.ability.kind)} ${H.ability.name}</button>
+    </div>`;
 
   // condensed mana tracker, LEFT side by the hero: shows the hand's resource
   // pool at rest and becomes the pay/target controls when a card is staged
@@ -1594,7 +1606,6 @@ function render() {
         <button class="btn small log-btn" data-act="log-toggle">${STR.hud.log}</button>
       </div>
     </header>
-    ${payBar}${targetBar}${manaChip}
     <section class="villain-zone">
       <div class="piles">
         <div class="pile" data-tip="${esc(STR.tips.encDeck)}">
@@ -1633,25 +1644,31 @@ function render() {
           ${agendaChips ? `<div class="agenda-chips" data-tip="${esc(STR.tips.agendaOngoing)}">${agendaChips}</div>` : ""}
         </div>
       </div>
-      <div class="sideschemes">${sideHTML}</div>
-      <div class="minions">${minionsHTML}</div>
+      ${sideHTML ? `<div class="sideschemes">${sideHTML}</div>` : ""}
+      ${minionsHTML ? `<div class="minions">${minionsHTML}</div>` : ""}
     </section>
-    <section class="board">
-      <div class="upgrades">${upgradesHTML}</div>
-      <div class="allies">${alliesHTML}</div>
+    <section class="board ${upgradesHTML || alliesHTML ? "" : "empty"}">
+      ${upgradesHTML ? `<div class="upgrades">${upgradesHTML}</div>` : ""}
+      ${alliesHTML ? `<div class="allies">${alliesHTML}</div>` : ""}
+      ${upgradesHTML || alliesHTML ? "" : `<p class="board-empty">${STR.hud.boardEmpty}</p>`}
     </section>
     <section class="hero-zone">
       <div class="hero-wrap">
         <div class="card hero f-${H.color} ${S.hero.exhausted ? "exhausted" : ""}" data-act="hero" data-prev="h" data-fx="hero" role="button" tabindex="0" aria-label="${esc(`${H.name}, ${S.hero.hp} of ${S.hero.maxHp} health`)}">
           <div class="c-art"><img src="${artPath(H.art)}" alt=""></div>
           <div class="c-name">${H.name}</div>
+          <div class="c-type">${H.title.toUpperCase()}</div>
+          <div class="c-text"><b>${H.ability.name}:</b> ${H.ability.text}</div>
           <div class="c-stats">${statChip("atk", E.heroAtk(S))}${statChip("thw", E.heroThw(S))}${statChip("def", E.heroDef(S))}</div>
           ${hpbarHTML("hero-hp", Math.max(0, 100 * S.hero.hp / S.hero.maxHp), `${S.hero.hp}/${S.hero.maxHp}`)}
           ${S.hero.shield > 0 ? `<div class="shield-badge">${ICON.def}${S.hero.shield}</div>` : ""}
         </div>
         ${heroBtns}
       </div>
-      <div class="hand">${handHTML}</div>
+      <div class="hand-wrap">
+        <div class="dock-slot">${payBar}${targetBar}${manaChip}</div>
+        <div class="hand" style="--ov:${Math.min(0.34, 0.09 + Math.max(0, handN - 5) * 0.06).toFixed(2)}">${handHTML}</div>
+      </div>
       <div class="side">
         <div class="pile" data-fx="pdeck" data-tip="${esc(STR.tips.deck)}">
           <img src="${artPath("cardback")}" alt="">
@@ -1755,7 +1772,7 @@ function renderInspector() {
     inner = `<div class="cardface pcard f-void"><div class="c-art"><img src="${artPath(VILLAINS[S.villainId].art)}"></div>
       <div class="c-name">${st.title}</div><div class="c-type">VILLAIN — ${STR.hud.stage} ${S.villain.stage + 1}/${VILLAINS[S.villainId].stages.length}</div>
       <div class="c-text">ATK ${E.villainAtkVal(S)} · SCHEME ${E.villainSchVal(S)} · ${STR.hud.hp} ${S.villain.hp}</div></div>`;
-    flavor = "The crown remembers a king. The king remembers nothing.";
+    flavor = VILLAINS[S.villainId].flavor || "";
   } else if (key === "s") {
     const forecast = E.doomForecast(S);
     const threshold = E.schemeThreshold(S);

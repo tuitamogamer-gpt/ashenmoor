@@ -55,3 +55,19 @@ Verification:
 - Inspected `doom-forecast.png`, `doom-scheme-forecast.png`, `doom-effects-forecast.png`, `doom-defeat-forecast.png`, `doom-inspector.png`, and `mobile-doom-inspector.png`; forecast, breakdown, projected pips, advance/defeat warnings, and the full mobile inspector are visible without clipping.
 
 Optional next tuning step (not required for this feature): if human play still feels too punishing after the hidden Doom is now visible, test capping agenda overflow at 1 before changing thresholds.
+
+## 2026-10-23 — v2.6 Polish (design pass)
+
+Request: "Sredi dizajn i sve".
+
+- [x] Self-hosted Cinzel + EB Garamond; the previously referenced-but-never-loaded "Cinzel" now actually renders.
+- [x] Menu reorganized: utility bar (Statistics, How to Play, Settings, sound), Warden and Nightmare pickers, difficulty, and a sticky call-to-action bar with Begin / Campaign / Daily.
+- [x] Fixed hero picker cards with uneven art heights (buttons centred their content vertically).
+- [x] Board: viewport-height card sizing, allies zone that sizes its cards to the remaining height, empty-state hint, upgrades pinned to the zone header, minions laid out in a row (they used to stack vertically and push the hand off-screen).
+- [x] Hero card shows title and ability; hero actions stay rendered (disabled) through the villain phase so the layout no longer jumps.
+- [x] Pay / target / resource docks moved from a fixed overlay on the hero card to the seam above the hand.
+- [x] Card text scales with card width (container-query units); inspector is a framed panel; mobile topbar wraps correctly.
+- [x] Help modal has a fixed footer; mulligan fits a full hand on one row; campaign hub typography and mobile act row.
+- [x] Each villain has its own inspector flavor line (all four used to show Morvane's).
+
+Verification: `npm run check` (19/19), browser smoke test, and screenshots at 1440×900, 1280×720, 1024×640, 844×390 and 390×844 with an empty and a fully crowded board.

@@ -43,6 +43,12 @@ The Daily Vigil derives its Warden, Nightmare, and shuffle seed from the local c
 
 The current smart-policy 1,000-game matrix has Normal matchup win rates of 31.6%–68.2% and Nightmare rates of 15.2%–53.3%, with no crashes or 200-round stalls. The three-act campaign completed at 57.2%–87.1% on Normal and 14.5%–52.0% on Nightmare in 1,000-run samples. These are regression ranges, not promises about human win rate.
 
+## Design notes
+
+- Typography: Cinzel (display) and EB Garamond (card and body serif), self-hosted from `assets/fonts/` under the SIL Open Font License, so the game still makes no third-party requests.
+- Board card sizes are CSS variables driven by the viewport height (`--hand-w`, `--boss-w`, …); card text is sized in container-query units so a card reads the same in the hand, the inspector, and modals.
+- On desktop and landscape screens the whole board fits one screen: the allies zone takes the leftover height and scales its cards to it. Portrait phones and very short windows scroll instead.
+
 ## Architecture
 
 - `js/engine.js`: pure serializable rules engine

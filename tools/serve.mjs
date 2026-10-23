@@ -18,6 +18,7 @@ const MIME = {
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
   ".csv": "text/csv",
+  ".woff2": "font/woff2",
 };
 
 createServer(async (req, res) => {

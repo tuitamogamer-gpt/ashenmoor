@@ -19,6 +19,8 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".csv": "text/csv",
   ".woff2": "font/woff2",
+  ".webmanifest": "application/manifest+json",
+  ".mp3": "audio/mpeg",
 };
 
 createServer(async (req, res) => {

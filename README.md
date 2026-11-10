@@ -27,6 +27,12 @@ On a fresh machine, install the browser binary once before the browser smoke tes
 npx playwright install chromium
 ```
 
+If a Chromium build is already installed elsewhere (one that differs from what this Playwright version would download), point the smoke test at it instead:
+
+```bash
+CHROMIUM_PATH=/path/to/chrome npm run test:browser
+```
+
 Balance matrix examples:
 
 ```bash
@@ -37,7 +43,21 @@ TRACE=sera,nul,my-seed,nightmare node tools/sim.mjs
 
 Append `?dev=1` for development controls or `?test=1` for deterministic browser timing. Automated browser runs can read `window.render_game_to_text()` and advance paced villain steps with `window.advanceTime(ms)`.
 
-The Daily Vigil derives its Warden, Nightmare, and shuffle seed from the local calendar date, so retries on the same day are comparable. Completed-game statistics and the most recent 20 runs stay in local storage.
+The Daily Vigil derives its Warden, Nightmare, and shuffle seed from the local calendar date, so retries on the same day are comparable. Completed-game statistics (overall, per Warden, per Nightmare and per difficulty) and the most recent 20 runs stay in local storage.
+
+## Offline play and installing
+
+The deployed game is a small Progressive Web App: `manifest.webmanifest` makes it installable (home screen / desktop app, standalone window) and `sw.js` keeps a copy of every file the game uses so a Vigil can be started with no connection. The service worker is network-first — online players always get the files that are deployed right now, and the cache is only the fallback — so a deploy can never be pinned behind a stale copy.
+
+It registers only on `https:` deployments, never on the local dev server, in `?test=1` runs or in the co-op build; append `?sw=1` to try it locally. After adding or removing art, icons, sounds or modules, regenerate the precache list (a unit test fails until you do):
+
+```bash
+node tools/gen-sw.mjs
+```
+
+## Controls
+
+Everything can be played with the keyboard: Tab through the hand, the hero's actions and the board, Enter/Space to select and play, Enter to confirm a payment, Esc to cancel, E to end the turn, H for the rules, M to mute and F for fullscreen. Focus survives every board update, moves to the valid targets when a card needs one, and returns to End Turn after the villain phase. The letter shortcuts are ignored while typing in a text field and whenever Ctrl, Cmd or Alt is held.
 
 ## Balance reference
 
@@ -55,5 +75,7 @@ The current smart-policy 1,000-game matrix has Normal matchup win rates of 31.6%
 - `js/cards.js`: heroes, player cards, encounters, villains, and agendas
 - `js/ui.js`: DOM rendering, interaction, save/resume, and villain-phase presentation
 - `js/campaign.js`: The Long Vigil campaign state
+- `sw.js` / `manifest.webmanifest`: offline cache and install metadata (`tools/gen-sw.mjs` regenerates the precache list)
 - `tools/sim.mjs`: headless balance simulator
-- `test/`: deterministic engine and campaign regression tests
+- `tools/browser-smoke.mjs`: desktop, keyboard, phone, villain-phase, Daily Vigil and offline browser checks
+- `test/`: deterministic engine, campaign and service-worker regression tests

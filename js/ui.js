@@ -40,6 +40,48 @@ let menuVillain = "morvane";
 let menuDiff = "normal";
 let defenseResolve = null;    // pending defense promise resolver
 let confirmAction = null;
+let pendingFocus = null;      // focus key whose control is disabled for now (End Turn mid villain phase)
+let modalReturnKey = null;    // where focus goes back once the last dialog closes
+
+// ---------- keyboard focus across re-renders ----------
+// render() rebuilds the board from scratch, which would drop keyboard focus
+// on <body> after every action. Controls are identified by their data
+// attributes instead, so the "same" control can be found again afterwards.
+function focusKeyOf(el) {
+  const host = el?.closest?.("[data-act], [data-target]");
+  if (!host || !app()?.contains(host)) return null;
+  const act = host.dataset.act || "";
+  const peers = act ? [...app().querySelectorAll(`[data-act="${act}"]`)] : [];
+  return { act, uid: host.dataset.uid ?? null, id: host.dataset.id ?? null, target: host.dataset.target ?? null, index: peers.indexOf(host) };
+}
+const canFocus = (el) => !!el && !el.disabled && !el.classList.contains("off") && el.getClientRects().length > 0;
+function focusEl(el) {
+  if (!canFocus(el)) return false;
+  el.focus({ preventScroll: true });
+  if (document.activeElement !== el) return false;
+  pendingFocus = null;
+  return true;
+}
+function restoreFocus(key) {
+  if (!key || !app()) return;
+  const root = app();
+  const same = key.act ? [...root.querySelectorAll(`[data-act="${key.act}"]`)].find((n) =>
+    (key.uid === null || n.dataset.uid === key.uid) && (key.id === null || n.dataset.id === key.id)
+    && (key.target === null || n.dataset.target === key.target)) : null;
+  if (focusEl(same)) return;
+  // the control exists but is only disabled while the villain acts — come
+  // back to it when the turn returns instead of dragging focus elsewhere
+  if (same && S && (!E.canAct(S) || running)) { pendingFocus = key; return; }
+  if (mode === "target" && focusEl(root.querySelector(".targetable[tabindex='0'], button.targetable"))) return;
+  if (mode === "pay" && (focusEl(root.querySelector('[data-act="pay-confirm"]')) || focusEl(root.querySelector(".hcard.staged")))) return;
+  if (key.act === "hand") {
+    const hand = [...root.querySelectorAll('[data-act="hand"]')];
+    if (focusEl(hand[Math.min(Math.max(0, key.index), hand.length - 1)])) return;
+  }
+  if (focusEl(root.querySelector(`[data-act="${key.act}"]:not(:disabled)`))) return;
+  if (focusEl(root.querySelector('[data-act="hand"]'))) return;
+  focusEl(root.querySelector('[data-act="end-turn"]'));
+}
 
 function gameSnapshot() {
   if (!S) {
@@ -150,6 +192,12 @@ const FINE = matchMedia("(pointer:fine)").matches;
 const NOMOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let tilted = null;
 
+// offline play / install: real (https) deployments only — never the local dev
+// server, automated test runs or the co-op build — unless ?sw=1 asks for it
+if ("serviceWorker" in navigator && !window.__COOP__ && (QUERY.has("sw") || (location.protocol === "https:" && !TEST))) {
+  addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });
+}
+
 addEventListener("DOMContentLoaded", () => {
   setMuted(!!prefs().muted);
   menuHero = prefs().lastHero || "kaelen";
@@ -158,9 +206,18 @@ addEventListener("DOMContentLoaded", () => {
   VFX.init();
   VFX.setAmbient(true);
   new MutationObserver((records) => {
+    // when the last dialog closes, hand focus back to what the player was on
+    // before the first one opened (End Turn after a villain phase, a hand card…)
+    const removedModal = records.some((r) => [...r.removedNodes].some((n) => n instanceof HTMLElement && n.classList.contains("modal")));
+    if (removedModal && !document.querySelector(".modal")) {
+      const key = modalReturnKey || (S && E.canAct(S) ? { act: "hand", uid: null, id: null, target: null, index: 0 } : null);
+      modalReturnKey = null;
+      if (key && (document.activeElement === document.body || !document.activeElement)) restoreFocus(key);
+    }
     for (const record of records) for (const node of record.addedNodes) {
       if (!(node instanceof HTMLElement)) continue;
       const modals = node.classList.contains("modal") ? [node] : [...node.querySelectorAll(".modal")];
+      if (modals.length && !modalReturnKey) modalReturnKey = focusKeyOf(document.activeElement) || pendingFocus;
       for (const modal of modals) {
         modal.setAttribute("role", "dialog");
         modal.setAttribute("aria-modal", "true");
@@ -169,7 +226,7 @@ addEventListener("DOMContentLoaded", () => {
           if (!heading.id) heading.id = `dialog-title-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
           modal.setAttribute("aria-labelledby", heading.id);
         }
-        queueMicrotask(() => modal.querySelector("button:not(:disabled),input:not(:disabled)")?.focus());
+        queueMicrotask(() => (modal.querySelector("[data-autofocus]") || modal.querySelector("button:not(:disabled),input:not(:disabled)"))?.focus());
       }
     }
   }).observe($("#overlays"), { childList: true, subtree: true });
@@ -231,11 +288,16 @@ function onKey(e) {
       if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); return; }
     }
   }
+  // single-letter shortcuts must never steal keystrokes from a text field
+  // (the pile search) or hijack browser/OS chords like Ctrl+F or Cmd+H
+  const typing = !!e.target?.closest?.('input:not([type="range"]), textarea, select, [contenteditable=""], [contenteditable="true"]');
+  const chord = e.ctrlKey || e.metaKey || e.altKey;
   const keyboardTarget = e.target?.closest?.('[role="button"][data-act]');
-  if ((e.code === "Enter" || e.code === "Space") && keyboardTarget) {
+  if ((e.code === "Enter" || e.code === "Space") && keyboardTarget && !chord) {
     keyboardTarget.click();
     e.preventDefault();
   } else if (e.code === "Escape") { cancelModes(); closeTopModal(); render(); e.preventDefault(); }
+  else if (typing || chord) return;
   else if ((e.code === "Enter" || e.code === "NumpadEnter") && S && mode === "pay" && !$(".modal")) { confirmPay(); e.preventDefault(); }
   else if (e.code === "KeyE" && S && E.canAct(S) && mode === "idle" && !running && !$(".modal")) { doEndTurn(); e.preventDefault(); }
   else if (e.code === "KeyH") { toggleHelp(); e.preventDefault(); }
@@ -263,7 +325,9 @@ function applySettings() {
 
 // ---------- menu ----------
 function renderMenu() {
+  dismissAgendaNotice();
   S = null;
+  pendingFocus = null; // a focus target from the last battle means nothing here
   stopDrone();
   stopMusic();
   VFX.setIntensity(1);
@@ -396,6 +460,7 @@ function startCampaignGame() {
   S = E.newGame(c.heroId, CAMP.ACTS[c.act], c.difficulty, String(Date.now()) + Math.random().toString(36).slice(2), CAMP.actOpts(c));
   startDrone(); startMusic(); setMusicStage(0); VFX.setIntensity(1);
   resetModes();
+  pendingFocus = null;
   document.body.className = "in-game";
   save();
   render();
@@ -502,6 +567,7 @@ function startGame(options = {}) {
   setMusicStage(0);
   VFX.setIntensity(1);
   resetModes();
+  pendingFocus = null;
   document.body.className = "in-game";
   save();
   render();
@@ -590,7 +656,17 @@ function onClick(e) {
       });
       filterPileModal(modal);
     },
-    "continue": () => { const st = loadSave(); if (st) { S = st; document.body.className = "in-game"; startDrone(); startMusic(); resetModes(); render(); if (S.phase === "villain") { vpLogStart = S.log.length; runVillain(); } } },
+    "continue": () => {
+      const st = loadSave();
+      if (!st) return;
+      S = st;
+      document.body.className = "in-game";
+      startDrone(); startMusic(); setMusicStage(S.villain.stage);
+      resetModes();
+      render();
+      if (S.phase === "villain") { vpLogStart = S.log.length; runVillain(); }
+      else if (!S.mulliganed) showMulligan(); // saved before the opening hand was settled
+    },
     "howto": () => toggleHelp(true),
     "mute": () => toggleMute(),
     "menu": () => { if (COOP.on) return; if (!running) openPauseMenu(); },
@@ -620,7 +696,13 @@ function onClick(e) {
       if (action) action();
     },
     "coach-close": () => { el.closest(".modal")?.remove(); },
-    "inspector-close": () => { sel = null; hoverPrev = null; renderInspector(); },
+    "inspector-close": () => {
+      // a full render also drops the lifted "selected" look from the hand card
+      const prevUid = sel?.kind === "hand" ? sel.uid : null;
+      sel = null; hoverPrev = null;
+      render();
+      if (prevUid !== null) focusEl(app().querySelector(`[data-act="hand"][data-uid="${prevUid}"]`));
+    },
     "hand": () => onHandClick(uid),
     "play": () => beginPlay(uid),
     "pay-confirm": () => confirmPay(),
@@ -808,7 +890,7 @@ function afterPay(uid, payIds) {
   act(() => E.playCard(S, uid, payIds, null));
   resetModes();
   render();
-  hintOnce("endTurn");
+  hintOnce("endTurn", { villain: VILLAINS[S.villainId].name });
 }
 
 function heroAttackFlow() {
@@ -896,6 +978,10 @@ function doEndTurn() {
 async function runVillain() {
   if (running || !S) return;
   running = true;
+  // every await below can outlive this battle (menu, restart, a new Vigil);
+  // the driver must then stop instead of stepping whatever S has become
+  const game = S;
+  const live = () => S === game && S.phase === "villain" && !S.over;
   render();
   let lastLog = S.log.length;
   const announce = () => {
@@ -903,10 +989,11 @@ async function runVillain() {
     lastLog = S.log.length;
     if (fresh.length) banner(esc(fresh[0].msg.slice(0, 90)), "vp " + (fresh[0].cls || ""), 1150);
   };
-  while (S && S.phase === "villain" && !S.over) {
+  while (live()) {
     if (S.vp.pending) {
       render();
       const choice = await defenseModal(E.defenseOptions(S));
+      if (S !== game) break;
       E.applyDefense(S, choice);
       announce();
       commit();
@@ -915,6 +1002,7 @@ async function runVillain() {
     if (S.vp.revealed) {
       render();
       await revealModal(S.vp.revealed);
+      if (S !== game) break;
       E.resolveReveal(S);
       announce();
       commit();
@@ -923,25 +1011,34 @@ async function runVillain() {
     if (S.vp.agenda != null) {
       render();
       await agendaModal(S.vp.agenda);
+      if (S !== game) break;
       E.ackAgenda(S);
       announce();
       commit();
       continue;
     }
     await sleep(CONFIG.stepMs * speedMult);
-    if (!S || S.phase !== "villain" || S.over) break;
+    if (!live()) break;
     E.stepVillain(S);
     announce();
     commit();
   }
   running = false;
+  if (S !== game) return;
   render();
   if (S && !S.over && S.phase === "player") showRecap();
+}
+
+// centred flourishes (the boost card flash, the "Your turn" banner) sit above
+// the dialog layer; once a decision dialog opens they would only hide its text
+function clearFlourishes() {
+  document.querySelectorAll("#overlays .reveal-flash, #overlays .banner.turn").forEach((el) => el.remove());
 }
 
 function showRecap() {
   const entries = S.log.slice(vpLogStart).filter((l) => l.msg !== STR.phases.yourTurn);
   if (!entries.length) return;
+  clearFlourishes(); // the recap itself is the hand-over back to the player
   const el = document.createElement("div");
   el.className = "modal recap";
   el.innerHTML = `
@@ -957,12 +1054,21 @@ function showRecap() {
 }
 
 let agendaResolveFn = null;
+// an agenda notice raised by the player's own action has nobody awaiting it;
+// once the battle is decided or left it must not linger over the next screen
+function dismissAgendaNotice() {
+  const m = $(".modal.agenda-m");
+  if (!m) return;
+  m.remove();
+  if (agendaResolveFn) { const r = agendaResolveFn; agendaResolveFn = null; r(); }
+}
 function agendaModal(stageIdx) {
   return new Promise((resolve) => {
     agendaResolveFn = resolve;
     const agenda = E.agendaDef(S);
     const st = agenda.stages[stageIdx];
     const el = document.createElement("div");
+    clearFlourishes();
     el.className = "modal reveal-m agenda-m";
     el.innerHTML = `
       <div class="modal-box reveal-box agenda-box">
@@ -1001,6 +1107,7 @@ function revealModal(eid) {
     if (e.surge) notes.push(STR.reveal.surge);
     if (e.haunt) notes.push(STR.reveal.haunt);
     const el = document.createElement("div");
+    clearFlourishes();
     el.className = "modal reveal-m";
     el.innerHTML = `
       <div class="modal-box reveal-box">
@@ -1008,7 +1115,7 @@ function revealModal(eid) {
         <div class="reveal-body">
           <div class="reveal-card">${encCardHTML(eid)}</div>
           <div class="reveal-notes">
-            ${notes.map((n) => `<p>${n}</p>`).join("")}
+            ${notes.map((n) => `<p>${iconize(n, "◆")}</p>`).join("")}
           </div>
         </div>
         <button class="btn primary" data-act="reveal-resolve">${STR.reveal.resolve}</button>
@@ -1025,14 +1132,21 @@ function defenseModal(o) {
     const dmgStr = o.dmg + q;
     const host = $("#overlays");
     const el = document.createElement("div");
+    clearFlourishes();
     el.className = "modal defense";
     el.innerHTML = `
       <div class="modal-box">
         <h3>${tpl(STR.defense.title, { attacker: esc(o.name), dmg: dmgStr })}</h3>
-        ${o.boosted ? `<p class="boost-note">${STR.defense.boostNote}</p>` : ""}
+        ${o.boosted ? `<p class="boost-note">${iconize(STR.defense.boostNote)}</p>` : ""}
+        <div class="def-status" aria-label="${esc(tpl(STR.defense.statusAria, { hero: HEROES[S.heroId].name, hp: o.heroHp, max: o.heroMaxHp, shield: o.heroShield, def: o.heroDef }))}">
+          <b>${esc(HEROES[S.heroId].name)}</b>
+          <span>${ICON.hp} ${o.heroHp}/${o.heroMaxHp}</span>
+          ${o.heroShield > 0 ? `<span class="shield">${ICON.def} ${tpl(STR.defense.shield, { n: o.heroShield })}</span>` : ""}
+          <span>${tpl(STR.defense.def, { n: o.heroDef })}</span>
+        </div>
         <div class="def-opts">
           ${o.heroCanDefend ? `<button class="btn" data-act="def-hero">${tpl(STR.defense.heroDefend, { dmg: o.heroDmgIfDefend + q })}</button>` : ""}
-          ${o.allies.map((a) => `<button class="btn" data-act="def-ally" data-uid="${a.uid}">${tpl(STR.defense.allyBlock, { name: esc(a.name) })}${a.dies ? ` <span class="dies">(${STR.defense.allyDies})</span>` : ""}</button>`).join("")}
+          ${o.allies.map((a) => `<button class="btn" data-act="def-ally" data-uid="${a.uid}">${tpl(STR.defense.allyBlock, { name: esc(a.name) })} <span class="def-hp">${ICON.hp}${a.hp}</span>${a.dies ? ` <span class="dies">(${STR.defense.allyDies})</span>` : ""}</button>`).join("")}
           <button class="btn danger" data-act="def-take">${tpl(STR.defense.take, { dmg: dmgStr })}</button>
         </div>
       </div>`;
@@ -1057,11 +1171,11 @@ function toast(msg) {
   setTimeout(() => el.remove(), 2100);
 }
 
-function hintOnce(key) {
+function hintOnce(key, vars) {
   const p = prefs();
   if (p["hint_" + key]) return;
   setPrefs({ ["hint_" + key]: 1 });
-  toast(STR.hints[key]);
+  toast(tpl(STR.hints[key], vars));
 }
 
 function showCoachOnce() {
@@ -1094,7 +1208,7 @@ function showMulligan() {
         ${S.hand.map((h) => `<button type="button" class="mcard" data-act="mull-toggle" data-uid="${h.uid}" aria-pressed="false" aria-label="${esc(`Redraw ${CARDS[h.c].name}`)}">${playerCardHTML(h.c)}</button>`).join("")}
       </div>
       <div class="row">
-        <button class="btn primary" data-act="mull-keep">${STR.actions.keepHand}</button>
+        <button class="btn primary" data-act="mull-keep" data-autofocus>${STR.actions.keepHand}</button>
         <button class="btn" data-act="mull-redraw">${STR.actions.mulligan}</button>
       </div>
     </div>`;
@@ -1102,7 +1216,7 @@ function showMulligan() {
 }
 
 function showEnd() {
-  if (!S || !S.over) return;
+  if (!S || !S.over || $(".modal.end")) return;
   if (COOP.on) { coopLocalEnd(); return; }
   const w = S.over.win;
   if (!S.statsRecorded) {
@@ -1147,6 +1261,7 @@ function showEnd() {
     setPrefs({ wins, stats, daily });
   }
   const reason = w ? STR.end.winReason : S.over.reason === "hp" ? STR.end.loseHp : STR.end.loseScheme;
+  dismissAgendaNotice();
   const el = document.createElement("div");
   el.className = "modal end";
   el.innerHTML = `
@@ -1180,9 +1295,14 @@ function showStats() {
   const st = prefs().stats || { games: 0, wins: 0, totalRounds: 0, byHero: {}, recent: [] };
   const el = document.createElement("div");
   el.className = "modal stats-modal";
-  const heroRows = Object.values(HEROES).map((h) => {
-    const row = st.byHero?.[h.id] || { games: 0, wins: 0 };
-    return `<div class="stat-row"><span>${h.name}</span><b>${row.wins}/${row.games}</b><em>${pct(row.wins, row.games)}</em></div>`;
+  const statRow = (label, row = { games: 0, wins: 0 }) =>
+    `<div class="stat-row"><span>${label}</span><b>${row.wins}/${row.games}</b><em>${pct(row.wins, row.games)}</em></div>`;
+  const heroRows = Object.values(HEROES).map((h) => statRow(h.name, st.byHero?.[h.id])).join("");
+  // byVillain / byDifficulty have been recorded since v1.9 — now they show
+  const villainRows = Object.values(VILLAINS).map((v) => statRow(v.name, st.byVillain?.[v.id])).join("");
+  const diffLine = ["normal", "nightmare"].map((d) => {
+    const row = st.byDifficulty?.[d] || { games: 0, wins: 0 };
+    return `<span><b>${STR.menu[d]}</b> ${row.wins}/${row.games} · ${pct(row.wins, row.games)}</span>`;
   }).join("");
   const recent = (st.recent || []).slice(0, 8).map((r) => `
     <li class="${r.win ? "win" : "loss"}"><b>${r.win ? STR.stats.win : STR.stats.loss}</b> · ${HEROES[r.heroId]?.name || r.heroId} vs ${VILLAINS[r.villainId]?.name || r.villainId} · R${r.rounds}${r.dailyId ? ` · ${STR.stats.daily}` : ""}</li>`).join("");
@@ -1195,8 +1315,11 @@ function showStats() {
         <div><b>${pct(st.wins || 0, st.games || 0)}</b><span>${STR.stats.rate}</span></div>
         <div><b>${st.games ? (st.totalRounds / st.games).toFixed(1) : "—"}</b><span>${STR.stats.avgRounds}</span></div>
       </div>
-      <h4>${STR.stats.byWarden}</h4>
-      <div class="stat-table">${heroRows}</div>
+      <div class="stats-diff">${diffLine}</div>
+      <div class="stats-split">
+        <div><h4>${STR.stats.byWarden}</h4><div class="stat-table">${heroRows}</div></div>
+        <div><h4>${STR.stats.byNightmare}</h4><div class="stat-table">${villainRows}</div></div>
+      </div>
       <h4>${STR.stats.recent}</h4>
       <ul class="recent-runs">${recent || `<li>${STR.stats.none}</li>`}</ul>
       <button class="btn primary" data-act="close-modal">${STR.help.close}</button>
@@ -1219,26 +1342,26 @@ function toggleHelp(open) {
         <p class="help-goal">${H.goal}</p>
 
         <h4>${H.flowTitle}</h4>
-        ${H.flow.map((s, i) => `<div class="hstep"><b>${i + 1}</b><span>${s}</span></div>`).join("")}
+        ${H.flow.map((s, i) => `<div class="hstep"><b>${i + 1}</b><span>${iconize(s)}</span></div>`).join("")}
 
         <h4>${H.vpTitle}</h4>
         <p class="help-note">${H.vpNote}</p>
-        ${H.vp.map((s, i) => `<div class="hstep vp"><b>${i + 1}</b><span>${s}</span></div>`).join("")}
+        ${H.vp.map((s, i) => `<div class="hstep vp"><b>${i + 1}</b><span>${iconize(s)}</span></div>`).join("")}
 
         <h4>${H.anatomyTitle}</h4>
         <div class="anatomy">
           <div class="anatomy-card">${playerCardHTML("ember_slash")}</div>
           <div class="anatomy-card">${playerCardHTML("wardens_resolve")}</div>
-          <ol>${H.anatomy.map((s) => `<li>${s}</li>`).join("")}</ol>
+          <ol>${H.anatomy.map((s) => `<li>${iconize(s)}</li>`).join("")}</ol>
         </div>
 
         <h4>${H.legendTitle}</h4>
         <div class="legend">
-          ${H.legend.map(([ic, n, d]) => `<div class="leg"><i>${ic}</i><div><b>${n}</b><span>${d}</span></div></div>`).join("")}
+          ${H.legend.map(([ic, n, d]) => `<div class="leg"><i aria-hidden="true">${iconize(ic)}</i><div><b>${n}</b><span>${iconize(d)}</span></div></div>`).join("")}
         </div>
 
         <h4>${H.moreTitle}</h4>
-        ${H.body.map(([h, b]) => `<h5>${h}</h5><p>${b}</p>`).join("")}
+        ${H.body.map(([h, b]) => `<h5>${h}</h5><p>${iconize(b)}</p>`).join("")}
       </div>
       <button class="btn primary" data-act="close-modal">${H.close}</button>
     </div>`;
@@ -1380,6 +1503,17 @@ function toggleMute() {
 // ---------- card HTML builders ----------
 function statChip(ic, n, cls = "") { return `<span class="stat ${cls}">${ICON[ic] || ic}${n}</span>`; }
 
+// rules copy was written with text glyphs; render them as the same painted
+// medallions the cards use (✦ becomes the current Warden's own ability sigil)
+const GLYPH_ICON = { "⚔": "atk", "✧": "thw", "🛡": "def", "♥": "hp", "◆": "doom" };
+function iconize(html, only = "⚔✧🛡♥◆✦") {
+  return String(html).replace(/[⚔✧♥◆✦]|🛡/gu, (g) => {
+    if (!only.includes(g)) return g;
+    if (g === "✦") return abilityIcon(HEROES[S?.heroId || menuHero]?.ability.kind) || g;
+    return ICON[GLYPH_ICON[g]];
+  });
+}
+
 function playerCardHTML(cid, opts = {}) {
   const c = CARDS[cid];
   const cost = c.cost == null ? `<div class="c-cost res">${c.res || 1}</div>` : `<div class="c-cost">${opts.cost !== undefined ? opts.cost : c.cost}</div>`;
@@ -1480,7 +1614,7 @@ function render() {
   const minionsHTML = S.minions.map((m) => {
     const e = ENCOUNTERS[m.c];
     return `
-    <div class="card minion ${targetable(m.uid)}" data-target="${m.uid}" data-act="minion" data-prev="e:${m.c}" data-fx="minion:${m.uid}" role="button" tabindex="0" aria-label="Inspect ${esc(e.name)}, ${m.hp} health">
+    <div class="card minion ${targetable(m.uid)}" data-target="${m.uid}" data-act="minion" data-prev="e:${m.c}" data-fx="minion:${m.uid}" role="button" tabindex="${tabStop(m.uid)}" aria-label="Inspect ${esc(e.name)}, ${m.hp} health">
       <div class="c-art"><img src="${artPath(m.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
       <div class="c-stats">${statChip("atk", e.atk)}${statChip("hp", m.hp, "hp")}</div>
@@ -1519,7 +1653,7 @@ function render() {
   const sideHTML = S.sideSchemes.map((ss) => {
     const e = ENCOUNTERS[ss.c];
     return `
-    <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-act="side-scheme" data-prev="e:${ss.c}" data-fx="side:${ss.uid}" role="button" ${mode === "target" ? 'tabindex="0"' : 'tabindex="-1"'} aria-label="${esc(`${e.name}, ${ss.threat} doom`)}">
+    <div class="card sscard ${targetable(ss.uid)} ${e.crisis ? "crisis" : ""}" data-target="${ss.uid}" data-act="side-scheme" data-prev="e:${ss.c}" data-fx="side:${ss.uid}" role="button" tabindex="${targetable(ss.uid) ? 0 : -1}" aria-label="${esc(`${e.name}, ${ss.threat} doom`)}">
       <div class="c-art"><img src="${artPath(ss.c)}" alt=""></div>
       <div class="c-name">${e.name}</div>
       <div class="ss-threat ${e.burst && ss.threat >= e.burst.at - 2 ? "near-burst" : ""}">${ICON.doom} <b>${ss.threat}</b>${e.burst ? `<span class="burst-at" data-tip="${esc(STR.tips.burst)}">/${e.burst.at}${ICON.burst}</span>` : ""}</div>
@@ -1545,7 +1679,7 @@ function render() {
       && !(c.effect && c.effect.banish && S.minions.length === 0);
     return `
     <button type="button" class="card hcard ${staged ? "staged" : ""} ${chosen ? "pay-chosen" : ""} ${selected ? "selected" : ""} ${canplay ? "canplay" : ""}"
-         style="${fan}" data-act="hand" data-uid="${h.uid}" data-prev="p:${h.c}" aria-pressed="${!!selected}" aria-label="${esc(`${c.name}, ${c.type}, cost ${cost}`)}">
+         style="${fan}" data-act="hand" data-uid="${h.uid}" data-prev="p:${h.c}" aria-pressed="${!!selected}" aria-label="${esc(c.type === "resource" ? `${c.name}, resource, worth ${E.resValue(h.c)} when paying` : `${c.name}, ${c.type}, cost ${cost}`)}">
       ${playerCardHTML(h.c, { cost })}
       ${chosen ? `<div class="pay-badge">+${E.resValue(h.c)}</div>` : ""}
     </button>`;
@@ -1593,6 +1727,8 @@ function render() {
 
   document.body.className = "in-game";
   const prevBars = captureBars();
+  const active = document.activeElement;
+  const focusKey = focusKeyOf(active) || (!active || active === document.body ? pendingFocus : null);
   app().innerHTML = `
   <div class="game ${$(".game")?.classList.contains("show-log") ? "show-log" : ""} ${mode === "target" ? "targeting" : ""} ${S.villain.stage >= VILLAINS[S.villainId].stages.length - 1 ? "enrage" : ""} ${S.hero.hp <= 3 ? "lowhp" : ""}">
     <header class="topbar">
@@ -1616,7 +1752,7 @@ function render() {
           <span class="count">${S.enc.discard.length}</span>
         </div>
       </div>
-      <div class="card villain ${targetable("villain")}" data-target="villain" data-act="villain-card" data-prev="v" data-fx="villain" role="button" tabindex="0" aria-label="${esc(`${st.title}, ${S.villain.hp} health`)}">
+      <div class="card villain ${targetable("villain")}" data-target="villain" data-act="villain-card" data-prev="v" data-fx="villain" role="button" tabindex="${tabStop("villain")}" aria-label="${esc(`${st.title}, ${S.villain.hp} health`)}">
         <div class="c-art"><img src="${artPath(VILLAINS[S.villainId].art)}" alt=""></div>
         <div class="stage-pips">${VILLAINS[S.villainId].stages.map((_, i) => `<i class="${i <= S.villain.stage ? "on" : ""}"></i>`).join("")}</div>
         ${S.villain.stun > 0 ? `<div class="vchip stun" data-tip="${esc(STR.tips.stunChip)}">&#9889;${S.villain.stun}</div>` : ""}
@@ -1629,7 +1765,7 @@ function render() {
         ${hpbarHTML("", Math.max(0, 100 * S.villain.hp / (st.hp + CONFIG.difficulty[S.difficulty].villainHpBonus)), String(S.villain.hp))}
         ${attachHTML ? `<div class="chips">${attachHTML}</div>` : ""}
       </div>
-      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme" role="button" tabindex="0" aria-label="${esc(`${agenda.name}, ${S.scheme.threat} of ${th} doom; ${doomAria}`)}">
+      <div class="card scheme ${targetable("scheme")} ${crisisLock ? "crisis-locked" : ""}" data-target="scheme" data-act="scheme" data-prev="s" data-fx="scheme" role="button" tabindex="${tabStop("scheme")}" aria-label="${esc(`${agenda.name}, ${S.scheme.threat} of ${th} doom; ${doomAria}`)}">
         <div class="c-art"><img src="${artPath(agenda.art)}" alt=""></div>
         ${crisisLock ? `<div class="crisis-lock" data-tip="${esc(STR.tips.crisis)}">&#128274;</div>` : ""}
         <div class="c-name">${agenda.name}</div>
@@ -1689,6 +1825,11 @@ function render() {
   const logs = $(".logs");
   if (logs) logs.scrollTop = logs.scrollHeight;
   renderInspector();
+  // never pull focus out of an open dialog onto the board behind it
+  if (focusKey && !$(".modal")) {
+    pendingFocus = null;
+    restoreFocus(focusKey);
+  }
 }
 
 // ---------- hp bars (ghost trail animation across re-renders) ----------
@@ -1731,26 +1872,30 @@ function animateBars(prev) {
 function targetable(id) {
   return mode === "target" && targetCtx && targetCtx.valid.includes(id) ? "targetable" : "";
 }
+// while choosing a target, Tab walks only the valid targets on the board
+const tabStop = (id) => (mode === "target" && !targetable(id) ? -1 : 0);
 
 // ---------- inspector (big preview + context actions) ----------
 function renderInspector() {
   const box = $("#inspector");
   if (!box || !S) return;
   if (mode !== "idle") { box.innerHTML = ""; box.classList.remove("open"); return; }
-  let key = hoverPrev;
-  if (!key && sel) {
-    key = sel.kind === "hand" ? "p:" + E.handCard(S, sel.uid)?.c
-      : sel.kind === "ally" ? "p:" + S.allies.find((a) => a.uid === sel.uid)?.c
-      : sel.kind === "minion" ? "e:" + S.minions.find((m) => m.uid === sel.uid)?.c
-      : sel.kind === "villain" ? "v" : sel.kind === "scheme" ? "s" : sel.kind === "hero" ? "h" : null;
-  }
+  const selKey = !sel ? null
+    : sel.kind === "hand" ? "p:" + E.handCard(S, sel.uid)?.c
+    : sel.kind === "ally" ? "p:" + S.allies.find((a) => a.uid === sel.uid)?.c
+    : sel.kind === "minion" ? "e:" + S.minions.find((m) => m.uid === sel.uid)?.c
+    : sel.kind === "villain" ? "v" : sel.kind === "scheme" ? "s" : sel.kind === "hero" ? "h" : null;
+  const key = hoverPrev || selKey;
   if (!key || key.endsWith("undefined")) { box.innerHTML = ""; box.classList.remove("open"); return; }
+  const focusKey = box.contains(document.activeElement) ? focusKeyOf(document.activeElement) : null;
   let inner = "", flavor = "", details = "", actions = "";
   if (key.startsWith("p:")) {
     const cid = key.slice(2);
     inner = playerCardHTML(cid, { cost: E.effCost(S, CARDS[cid]) });
     flavor = CARDS[cid].flavor || "";
-    if (sel && sel.kind === "hand" && mode === "idle" && E.canAct(S)) {
+    // the Play button belongs to the SELECTED card — never under a card that
+    // is merely being hovered on the way to the inspector
+    if (key === selKey && sel.kind === "hand" && mode === "idle" && E.canAct(S)) {
       const hc = E.handCard(S, sel.uid);
       const c = CARDS[hc?.c || ""] || null;
       const blocked = c && c.type === "upgrade" && (S.upgrades.some((u) => u.c === hc.c)
@@ -1795,6 +1940,7 @@ function renderInspector() {
   }
   box.innerHTML = `<button class="inspector-close" data-act="inspector-close" aria-label="${esc(STR.actions.cancel)}">&#10005;</button>${inner}${details}${flavor ? `<p class="flavor">${flavor}</p>` : ""}${actions ? `<div class="insp-actions">${actions}</div>` : ""}`;
   box.classList.add("open");
+  if (focusKey) focusEl(box.querySelector(`[data-act="${focusKey.act}"]`));
 }
 
 // ---------- fx ----------

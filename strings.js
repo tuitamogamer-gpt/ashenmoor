@@ -19,7 +19,7 @@ export const STR = {
     stats: "Statistics",
     options: "Options",
     mute: "Sound",
-    version: "v2.6 · Polish",
+    version: "v2.7 · Wayfarer",
   },
   coop: {
     title: "TWIN VIGILS",
@@ -151,6 +151,9 @@ export const STR = {
     allyBlock: "Block with {name}",
     allyDies: "will be destroyed",
     boostNote: "A boost card lurks — the attack may hit harder than shown (◆).",
+    shield: "{n} shield",
+    def: "DEF {n}",
+    statusAria: "{hero}: {hp} of {max} health, {shield} shield, DEF {def}",
   },
   mulligan: {
     title: "Opening hand",
@@ -181,7 +184,7 @@ export const STR = {
     flow: [
       "Play cards from your hand. Pay a card's cost (the gold gem) by discarding OTHER cards from your hand — every card is worth 1 while paying; Warden's Resolve is worth 2, Shard of the Spire 3. Cards you can afford glow gold.",
       "Use your hero once: ⚔ Attack an enemy OR ✧ Disrupt (remove doom from a scheme). A hero who has NOT acted stays ready to defend in the villain phase.",
-      "Use your hero's ✦ ability — free, once per round (Kaelen burns for 1; Sera removes 1 doom; Odran gains 1 shield).",
+      "Use your hero's ✦ ability — free, once per round (Kaelen burns for 1; Sera removes 1 doom; Odran gains 1 shield; Ilva mends her most wounded ally for 2).",
       "Order your allies: each may ⚔ attack or ✧ disrupt once per round (the small buttons under the ally), then suffers 1 damage.",
       "Press End Turn when you are done — the villain acts next.",
     ],
@@ -310,6 +313,7 @@ export const STR = {
     rate: "Win rate",
     avgRounds: "Avg. rounds",
     byWarden: "By Warden",
+    byNightmare: "By Nightmare",
     recent: "Recent Vigils",
     none: "No completed Vigils yet.",
     win: "Victory",
@@ -350,7 +354,7 @@ export const STR = {
     face: "Face it",
   },
   hints: {
-    endTurn: "When you are done, press End Turn — the Hollow King acts next.",
+    endTurn: "When you are done, press End Turn — {villain} acts next.",
   },
   log: {
     gameStart: "The vigil begins. {hero} stands against {villain}.",

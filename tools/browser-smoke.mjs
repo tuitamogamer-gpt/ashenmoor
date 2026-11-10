@@ -58,7 +58,9 @@ async function finishOneVillainPhase(page) {
 
 await waitForServer();
 await mkdir("output/browser-smoke", { recursive: true });
-const browser = await chromium.launch({ headless: true });
+// CHROMIUM_PATH lets the smoke test reuse an already-installed Chromium whose
+// build differs from the one this Playwright version would download.
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || undefined });
 try {
   const desktop = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const desktopErrors = [];
@@ -91,6 +93,54 @@ try {
   await desktop.screenshot({ path: "output/browser-smoke/desktop.png", fullPage: true });
   await desktop.close();
 
+  // keyboard-only play: focus must survive the full re-render after every
+  // action, dialogs must hand it back, and letter shortcuts must not fire
+  // while the player is typing
+  const keys = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const keyErrors = [];
+  watchErrors(keys, keyErrors);
+  await keys.goto(`${base}&dev=1`);
+  const focusedAct = () => keys.evaluate(() => document.activeElement?.dataset?.act || document.activeElement?.tagName);
+  await keys.locator('[data-act="begin"]').focus();
+  await keys.keyboard.press("Enter");
+  assert.equal(await focusedAct(), "mull-keep", "the opening-hand dialog focuses Keep hand");
+  await keys.keyboard.press("Enter");
+  if (await keys.locator('[data-act="coach-close"]').count()) await keys.keyboard.press("Enter");
+  await keys.waitForFunction(() => document.activeElement?.dataset?.act === "hand");
+  const keyCard = await keys.evaluate(() => document.activeElement.dataset.uid);
+  await keys.keyboard.press("Enter");
+  assert.equal(await keys.evaluate(() => document.activeElement.dataset.uid), keyCard, "selecting a card keeps focus on it");
+  assert.equal(await keys.locator(".inspector.open").count(), 1);
+  assert.equal(await keys.evaluate(() => document.activeElement.matches(":focus-visible")), true);
+  await keys.evaluate(() => { window.AM.S.discard.push("ember_slash", "wardplate", "stagger"); window.AM.commit(); });
+  await keys.locator('[data-act="discard"]').click();
+  await keys.locator("[data-pile-search]").focus();
+  await keys.keyboard.type("ash");
+  assert.equal(await keys.locator("[data-pile-search]").inputValue(), "ash", "H/M/F/E must type into the search field");
+  assert.equal(await keys.locator(".modal.help").count(), 0, "typing h must not open How to Play");
+  await keys.keyboard.press("Control+KeyH");
+  assert.equal(await keys.locator(".modal.help").count(), 0, "browser chords are left alone");
+  await keys.keyboard.press("Escape");
+  assert.equal(await keys.locator(".modal").count(), 0);
+  await keys.evaluate(() => { const S = window.AM.S; S.intent = "attack"; S.villain.stun = 0; S.villainSealed = false; window.AM.commit(); });
+  await keys.locator('[data-act="end-turn"]').focus();
+  await keys.keyboard.press("Enter");
+  let sawDefense = false;
+  for (let i = 0; i < 40; i++) {
+    await keys.evaluate(() => window.advanceTime(10000));
+    if (await keys.locator(".modal.defense").count()) {
+      sawDefense = true;
+      assert.match(await keys.locator(".modal.defense .def-status").textContent(), /\d+\/\d+.*DEF \d+/s, "the defense dialog restates health and DEF");
+    }
+    if (await keys.locator(".modal").count()) { await keys.keyboard.press("Enter"); continue; }
+    const st = JSON.parse(await keys.evaluate(() => window.render_game_to_text()));
+    if (st.screen === "player" && st.round >= 2 && !st.running) break;
+  }
+  assert.equal(sawDefense, true, "an ATTACK round asks how to defend");
+  await keys.waitForFunction(() => document.activeElement?.dataset?.act === "end-turn");
+  assert.deepEqual(keyErrors, []);
+  await keys.close();
+
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const mobileErrors = [];
   watchErrors(mobile, mobileErrors);
@@ -98,6 +148,12 @@ try {
   const beginBox = await mobile.locator('[data-act="begin"]').boundingBox();
   assert.ok(beginBox && beginBox.y + beginBox.height <= 844, "Begin button must be visible without scrolling");
   await beginAndKeep(mobile);
+  const handEdge = await mobile.evaluate(() => {
+    const hand = document.querySelector(".hand");
+    hand.scrollLeft = 0;
+    return { first: hand.querySelector(".hcard").getBoundingClientRect().left, hand: hand.getBoundingClientRect().left };
+  });
+  assert.ok(handEdge.first >= handEdge.hand, "an overflowing hand must start in view so its first card can be reached");
   await selectNonResource(mobile, true);
   const sheet = mobile.locator(".inspector.open");
   assert.equal(await sheet.isVisible(), true);
@@ -218,6 +274,27 @@ try {
   assert.deepEqual(boundaryErrors, []);
   await boundary.close();
 
+  // an agenda notice raised during the player's turn must not outlive the battle
+  const stale = await browser.newPage({ viewport: { width: 1180, height: 780 } });
+  const staleErrors = [];
+  watchErrors(stale, staleErrors);
+  await stale.goto(`${base}&dev=1`);
+  await beginAndKeep(stale);
+  await stale.evaluate(() => {
+    const state = window.AM.S;
+    state.scheme.threat = window.AM.E.schemeThreshold(state) - 1;
+    window.AM.E.addThreat(state, 1);
+    window.AM.commit();
+  });
+  assert.equal(await stale.locator(".modal.agenda-m").count(), 1);
+  await stale.evaluate(() => { window.AM.E.dev.dmgHero(window.AM.S, 99); window.AM.commit(); });
+  await stale.waitForSelector(".modal.end");
+  assert.equal(await stale.locator(".modal.agenda-m").count(), 0, "a decided battle closes its agenda notice");
+  await stale.locator('[data-act="again"]').click();
+  assert.equal(await stale.locator(".modal").count(), 0, "nothing from the battle lingers over the menu");
+  assert.deepEqual(staleErrors, []);
+  await stale.close();
+
   const daily = await browser.newPage({ viewport: { width: 900, height: 700 } });
   await daily.goto(base);
   await daily.locator('[data-act="daily"]').click();
@@ -232,7 +309,36 @@ try {
   assert.equal(firstDaily.villain.id, secondDaily.villain.id);
   await daily.close();
 
-  console.log("Browser smoke OK: desktop, mobile, full villain phase, and deterministic Daily Vigil flows");
+  const allies = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await allies.goto(`${base}&dev=1`);
+  await beginAndKeep(allies);
+  await allies.evaluate(() => { window.AM.S.allies.push({ uid: "a-smoke", c: "ashen_duelist", hp: 3, exhausted: false }); window.AM.commit(); });
+  const allyGeometry = await allies.evaluate(() => {
+    const ally = document.querySelector(".card.ally");
+    const chips = [...ally.querySelectorAll(".c-stats .stat")].map((chip) => chip.getBoundingClientRect().bottom);
+    return { buttons: ally.querySelector(".mini-btns").getBoundingClientRect().top, stats: Math.max(...chips) };
+  });
+  assert.ok(allyGeometry.buttons >= allyGeometry.stats - 1, "phone-sized ally buttons must not cover the ally's stats");
+  await allies.close();
+
+  // offline: once the service worker has the game, it starts with no server
+  const offlineContext = await browser.newContext({ viewport: { width: 1024, height: 700 } });
+  const offline = await offlineContext.newPage();
+  await offline.goto(`http://127.0.0.1:${port}/?sw=1`);
+  await offline.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    for (let i = 0; i < 150 && !navigator.serviceWorker.controller; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+  server.kill("SIGTERM");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await offline.reload();
+  assert.equal(await offline.locator(".menu .title").textContent(), "ASHENMOOR");
+  await offline.locator('[data-act="begin"]').click();
+  await offline.locator('[data-act="mull-keep"]').click();
+  assert.ok(await offline.locator("button.hcard").count() > 0, "a new Vigil starts offline");
+  await offlineContext.close();
+
+  console.log("Browser smoke OK: desktop, keyboard, mobile, full villain phase, Daily Vigil and offline flows");
 } finally {
   await browser.close();
   server.kill("SIGTERM");

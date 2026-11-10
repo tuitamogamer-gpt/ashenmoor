@@ -983,8 +983,10 @@ export function defenseOptions(S) {
     name: p.name, dmg: p.dmg, boosted: !!p.boostCard,
     heroCanDefend: !S.hero.exhausted,
     heroDmgIfDefend: Math.max(0, p.dmg - heroDef(S)),
+    // the dialog hides the board, so it carries the numbers the choice needs
+    heroHp: S.hero.hp, heroMaxHp: S.hero.maxHp, heroShield: S.hero.shield, heroDef: heroDef(S),
     allies: S.allies.filter((a) => !a.exhausted).map((a) => ({
-      uid: a.uid, name: CARDS[a.c].name, dies: p.dmg >= a.hp,
+      uid: a.uid, name: CARDS[a.c].name, hp: a.hp, dies: p.dmg >= a.hp,
     })),
   };
 }

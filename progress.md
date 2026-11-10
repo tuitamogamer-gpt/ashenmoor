@@ -71,3 +71,30 @@ Request: "Sredi dizajn i sve".
 - [x] Each villain has its own inspector flavor line (all four used to show Morvane's).
 
 Verification: `npm run check` (19/19), browser smoke test, and screenshots at 1440×900, 1280×720, 1024×640, 844×390 and 390×844 with an empty and a fully crowded board.
+
+## 2026-11-10 — v2.7 Wayfarer (continued improvements)
+
+Request: "nastavi poboljšanja pa push na main" — continue the improvements on top of the unmerged v2.6 Polish branch (PR #1) and ship both to main.
+
+Found by exercising every screen at 1440×900, 1280×720, 1024×640, 844×390 and 390×844 (each reproduced in a browser before fixing):
+
+- [x] Typing in the discard-pile search box triggered the H/M/F/E shortcuts (typing "ash" produced "as" and opened How to Play); Ctrl+F toggled fullscreen. Letter shortcuts now ignore text fields and Ctrl/Cmd/Alt chords.
+- [x] Every action re-rendered the board and dropped keyboard focus on `<body>`. Focus is now restored to the same control, moves to the valid targets in targeting mode and to the pay controls in pay mode, and returns to End Turn when the villain phase's last dialog closes; the opening-hand dialog focuses Keep hand.
+- [x] Phones: an overflowing hand was centred with `justify-content: center`, so the first card hung off the left edge where it could never be scrolled to. The hand is now centred with auto margins.
+- [x] Phones: the 44px ally action buttons covered the ally's stats and health; they now hang below the card with space reserved.
+- [x] The boost-card flash and the "Your turn" banner rendered above the defense / encounter / recap dialogs and hid their text; they are cleared when a decision dialog opens.
+- [x] Hovering another card while one was selected showed the hovered card in the inspector with a Play button that would play the selected one. The Play button now only appears under the selected card; closing the inspector also drops the card's lifted look.
+- [x] Resource cards were announced as "cost null" to screen readers; a battle saved before the mulligan resumed without the mulligan; the End Turn hint always named the Hollow King; the rules' ability list skipped Ilva; the end-of-game dialog could be opened twice.
+- [x] An agenda notice raised by the player's own action (e.g. a reshuffle doom or a dev/test hit) stayed open under the end-of-game dialog and reappeared over the main menu, blocking it. A decided or abandoned battle now closes it, and the villain-phase driver stops cleanly if its battle is replaced mid-await.
+- [x] While choosing a target, Tab walks only the valid targets (the agenda and other non-targets drop out of the tab order).
+- [x] The defense dialog (which hides the board) now shows the Warden's health, shield and DEF and each blocker's health.
+- [x] How to Play uses the painted medallion icons instead of the old text glyphs (✦ shows the current Warden's own sigil).
+- [x] Statistics also show the per-Nightmare and per-difficulty records that have been recorded since v1.9.
+- [x] Installable, offline-capable PWA: web manifest, app icons cut from the crown favicon, and a network-first service worker that precaches the 162 files the game uses (generated list, kept in sync by a unit test).
+
+Verification:
+
+- `npm run check`: syntax clean (20 files) and 23/23 tests pass (4 new service-worker/manifest tests).
+- `npm run test:browser`: new keyboard-only flow (focus after select, typing in search, Ctrl chords, defense status, focus back on End Turn), phone hand reachability, phone ally buttons vs. stats, a decided battle leaving no dialog over the menu (confirmed failing without the fix), and an offline restart with the dev server stopped — all pass alongside the existing desktop, mobile, villain-phase and Daily Vigil checks.
+- Screenshots of every screen re-inspected at all five viewports after the changes; no console errors.
+- `GAMES=250 node tools/sim.mjs`: 0 crashes, 0 stalls (rules unchanged apart from extra read-only fields on `defenseOptions`).

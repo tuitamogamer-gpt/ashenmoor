@@ -3,7 +3,7 @@ import { extname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const roots = ["js", "tools"];
-const files = ["logic.js", "coop-logic.js"];
+const files = ["logic.js", "coop-logic.js", "sw.js", "strings.js"];
 
 for (const root of roots) {
   for (const name of readdirSync(root)) {

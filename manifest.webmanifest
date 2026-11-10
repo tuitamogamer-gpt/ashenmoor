@@ -1,0 +1,17 @@
+{
+  "name": "Ashenmoor",
+  "short_name": "Ashenmoor",
+  "description": "A solo card game: choose a Warden, spend your hand as both weapons and fuel, and cast down a three-stage Nightmare before its agenda completes.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0e13",
+  "theme_color": "#0b0e13",
+  "categories": ["games"],
+  "icons": [
+    { "src": "assets/icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
